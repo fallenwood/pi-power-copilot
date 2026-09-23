@@ -7,7 +7,7 @@ import { createProvider, envApiKeyAuth, type Model } from "@earendil-works/pi-ai
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { loginPowerCopilot, refreshPowerCopilotCredential } from "./auth.ts";
 import { fetchModelCatalog, type PowerCopilotApi } from "./catalog.ts";
-import { COPILOT_API_VERSION, COPILOT_CLIENT_HEADERS } from "./copilot-headers.ts";
+import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
 import { resolvePowerCopilotBaseUrl } from "./oauth.ts";
 
 const DEFAULT_BASE_URL = "https://api.githubcopilot.com";
@@ -17,10 +17,7 @@ function createPowerCopilotProvider() {
     id: "power-copilot",
     name: "Power Copilot",
     baseUrl: DEFAULT_BASE_URL,
-    headers: {
-      ...COPILOT_CLIENT_HEADERS,
-      "X-GitHub-Api-Version": COPILOT_API_VERSION,
-    },
+    headers: COPILOT_REQUEST_HEADERS,
     auth: {
       apiKey: envApiKeyAuth("Power Copilot API key", []),
       oauth: {

@@ -1,4 +1,4 @@
-import { COPILOT_API_VERSION, COPILOT_CLIENT_HEADERS } from "./copilot-headers.ts";
+import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
 
 export type PowerCopilotApi = "openai-responses" | "openai-completions" | "anthropic-messages";
 export type ThinkingLevel = "off" | "minimal" | "low" | "medium" | "high" | "xhigh" | "max";
@@ -14,6 +14,7 @@ export interface PowerCopilotModelConfig {
   cost: { input: number; output: number; cacheRead: number; cacheWrite: number };
   contextWindow: number;
   maxTokens: number;
+  headers: Record<string, string>;
 }
 
 type JsonObject = Record<string, unknown>;
@@ -116,6 +117,7 @@ export function parseModelCatalog(payload: unknown): PowerCopilotModelConfig[] {
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: positiveSafeInteger(limits.max_context_window_tokens, "max_context_window_tokens", entry.id),
       maxTokens: positiveSafeInteger(limits.max_output_tokens, "max_output_tokens", entry.id),
+      headers: { ...COPILOT_REQUEST_HEADERS },
     });
   }
 
@@ -154,8 +156,7 @@ export async function fetchModelCatalog(
     headers: {
       accept: "application/json",
       authorization: `Bearer ${token}`,
-      ...COPILOT_CLIENT_HEADERS,
-      "X-GitHub-Api-Version": COPILOT_API_VERSION,
+      ...COPILOT_REQUEST_HEADERS,
     },
     signal,
   });

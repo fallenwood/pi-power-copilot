@@ -1,0 +1,17 @@
+title:
+  en: Attach Copilot headers to discovered models
+  zh: 将 Copilot 请求头附加到动态发现的模型
+status: implemented
+sections:
+  Problem:
+    en: Power Copilot declared its IDE identity headers on the provider, but Pi's API adapters assemble chat request headers from each model. Dynamically discovered models therefore omitted Editor-Version and were rejected by the Copilot API.
+    zh: Power Copilot 在 provider 上声明 IDE 身份请求头，但 Pi 的 API adapter 从每个模型组装聊天请求头。因此，动态发现的模型缺少 Editor-Version，并被 Copilot API 拒绝。
+  Decision:
+    en: Every dynamically discovered Power Copilot model carries the complete shared Copilot request header set, including the editor identity and GitHub API version. The provider and model discovery use the same definition.
+    zh: 每个动态发现的 Power Copilot 模型都携带完整的共享 Copilot 请求头集合，包括编辑器身份和 GitHub API 版本。provider 和模型发现使用同一定义。
+  Alternatives considered:
+    en: Rely only on provider-level headers (not propagated by the current Pi request path); patch each API adapter invocation (duplicates dispatch logic instead of using supported model headers).
+    zh: 仅依赖 provider 级请求头（当前 Pi 请求路径不会传播）；分别修改每个 API adapter 调用（会重复分发逻辑，而不是使用受支持的模型请求头）。
+  Consequences:
+    en: OpenAI Responses, OpenAI Completions, and Anthropic Messages requests consistently receive the required IDE identity. Client identity or API-version changes must update the shared request header definition.
+    zh: OpenAI Responses、OpenAI Completions 和 Anthropic Messages 请求会一致地收到所需 IDE 身份。客户端身份或 API 版本变更时必须更新共享请求头定义。

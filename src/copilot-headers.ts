@@ -6,3 +6,8 @@ export const COPILOT_CLIENT_HEADERS = {
 } as const;
 
 export const COPILOT_API_VERSION = "2026-06-01";
+
+export const COPILOT_REQUEST_HEADERS = {
+  ...COPILOT_CLIENT_HEADERS,
+  "X-GitHub-Api-Version": COPILOT_API_VERSION,
+} as const;

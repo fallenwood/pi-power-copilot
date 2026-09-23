@@ -37,6 +37,10 @@ test("maps Copilot model capabilities and response API metadata", () => {
   assert.equal(parsed.reasoning, true);
   assert.equal(parsed.thinkingLevelMap?.xhigh, "xhigh");
   assert.equal(parsed.thinkingLevelMap?.max, null);
+  assert.equal(parsed.headers["Editor-Version"], "vscode/1.107.0");
+  assert.equal(parsed.headers["Editor-Plugin-Version"], "copilot-chat/0.35.0");
+  assert.equal(parsed.headers["Copilot-Integration-Id"], "vscode-chat");
+  assert.equal(parsed.headers["X-GitHub-Api-Version"], "2026-06-01");
 });
 
 test("chooses a supported endpoint and excludes unavailable/non-chat models", () => {
