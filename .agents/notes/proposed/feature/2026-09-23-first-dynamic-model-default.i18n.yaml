@@ -1,0 +1,20 @@
+title:
+  en: Use the first discovered model as the default
+  zh: 使用动态发现的第一个模型作为默认模型
+status: proposed
+sections:
+  Problem:
+    en: After Power Copilot authentication, Pi reports that no default model is configured for the power-copilot provider. Its account-specific model catalog is discovered dynamically after authentication.
+    zh: Power Copilot 认证成功后，Pi 提示 power-copilot provider 未配置默认模型。该账户对应的模型目录要在认证后动态发现。
+  Proposal:
+    en: After successful authentication, refresh the catalog and use its first usable model as the default only when no model is already selected. Persist the choice through a supported Pi API for subsequent sessions. Apply this to OAuth and API-key authentication. If discovery fails or returns no usable models, keep authentication successful and direct the user to /model. This requires Pi core support because the current provider extension API cannot register a dynamic post-login default.
+    zh: 认证成功后刷新模型目录；仅当尚未选择模型时，使用首个可用模型作为默认值，并通过 Pi 支持的 API 持久化该选择以供后续会话使用。OAuth 和 API key 认证均适用。若发现失败或没有可用模型，则保留认证成功状态并提示用户使用 /model。由于当前 provider 扩展 API 无法注册动态的登录后默认模型，因此需要 Pi 核心支持。
+  Alternatives considered:
+    en: Keep requiring /model selection (compatible but not automatic); hard-code a model ID (incompatible with dynamic account-specific catalogs); mutate Pi's internal provider-default map (unsupported and coupled to internals).
+    zh: 继续要求通过 /model 选择（兼容现有 API，但不是自动行为）；硬编码模型 ID（不适用于动态且因账户而异的目录）；修改 Pi 内部 provider 默认映射（不受支持且依赖内部实现）。
+  Acceptance criteria:
+    en: Both OAuth and API-key login select the first usable catalog model only when no model is already selected; persist the provider and model using a supported Pi API; preserve authentication if discovery fails or yields no models and leave /model available.
+    zh: OAuth 和 API key 登录仅在尚未选择模型时选择目录中的首个可用模型；通过 Pi 支持的 API 持久化 provider 和模型；发现失败或没有模型时保留认证，并保留 /model 供用户选择。
+  Risks:
+    en: Catalog failures must not become authentication failures. Server-side ordering changes can change the default. Safe completion requires a supported Pi core hook or equivalent configuration.
+    zh: 目录获取失败不能变成认证失败。服务端排序变化可能改变默认模型。安全实现需要 Pi 核心提供受支持的钩子或等效配置。
