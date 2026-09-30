@@ -1,0 +1,17 @@
+title:
+  en: Keep OAuth login arguments owned by Pi
+  zh: 由 Pi 定义 OAuth 登录参数
+status: implemented
+sections:
+  Problem:
+    en: Pi 0.99.1 passes LoginOptions as the second OAuth login argument, but Power Copilot treated that argument as a test-only function and failed before requesting a device code. The 0.87.1 development SDK types only the interaction argument.
+    zh: Pi 0.99.1 将 LoginOptions 作为 OAuth 登录的第二个参数传入，但 Power Copilot 将该参数视为测试专用函数，在请求设备码之前就失败。开发环境使用的 0.87.1 SDK 只为交互参数声明类型。
+  Decision:
+    en: The registered adapter accepts only the interaction and directly calls GitHub OAuth. Unneeded Pi login context is ignored. Regression coverage exercises the registered provider with login options and controlled network responses instead of replacing the login implementation.
+    zh: 注册的适配器只接收交互对象，并直接调用 GitHub OAuth。忽略不需要的 Pi 登录上下文。回归测试向注册的 provider 传入登录选项并使用受控网络响应，而不是替换登录实现。
+  Alternatives considered:
+    en: Wrap registration to forward only the interaction (leaves the conflicting exported argument and hides the mismatch at one callsite); move function injection to another argument (extends a Pi-owned callback API unnecessarily).
+    zh: 在注册时包装回调，只转发交互对象（会保留导出参数冲突，只在一个调用点掩盖不匹配）；将函数注入移到另一个参数（不必要地扩展由 Pi 定义的回调 API）。
+  Consequences:
+    en: Both the single-argument 0.87.1 contract and the options-bearing 0.99.1 contract work without raising the minimum peer dependency. Credential, refresh, and notification formats remain unchanged. Tests no longer use function injection in the provider login adapter.
+    zh: 同时适用于 0.87.1 的单参数契约和 0.99.1 带选项的契约，无须提高 peer dependency 的最低版本。凭据、刷新和通知格式保持不变。测试不再在 provider 登录适配器中使用函数注入。

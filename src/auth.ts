@@ -1,4 +1,4 @@
-import type { OAuthCredential, OAuthCredentials, ProviderAuthInteraction } from "@earendil-works/pi-ai";
+import type { OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai";
 import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai/compat";
 import { loginPowerCopilot as loginWithGitHubOAuth, refreshPowerCopilotToken } from "./oauth.ts";
 
@@ -14,11 +14,8 @@ function adaptOAuthCallbacks(interaction: ProviderAuthInteraction): OAuthLoginCa
   };
 }
 
-export async function loginPowerCopilot(
-  interaction: ProviderAuthInteraction,
-  deviceCodeLogin: (callbacks: OAuthLoginCallbacks) => Promise<OAuthCredentials> = loginWithGitHubOAuth,
-): Promise<OAuthCredential> {
-  const credentials = await deviceCodeLogin(adaptOAuthCallbacks(interaction));
+export async function loginPowerCopilot(interaction: ProviderAuthInteraction): Promise<OAuthCredential> {
+  const credentials = await loginWithGitHubOAuth(adaptOAuthCallbacks(interaction));
   return { ...credentials, type: "oauth", authMethod: "github-oauth" };
 }
 
