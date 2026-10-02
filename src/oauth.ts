@@ -300,11 +300,11 @@ export async function refreshPowerCopilotToken(
   signal: AbortSignal,
   fetcher: FetchLike = fetch,
 ): Promise<OAuthCredentials> {
+  signal.throwIfAborted();
   const enterpriseDomain = getEnterpriseDomain(credentials);
   const refreshed = await exchangeForCopilotToken(credentials.refresh, enterpriseDomain, signal, fetcher);
-  const baseUrl = resolvePowerCopilotBaseUrl(refreshed.access, enterpriseDomain);
-  const models = await fetchModelCatalog(baseUrl, refreshed.access, signal, fetcher);
-  return { ...credentials, ...refreshed, availableModelIds: models.map((model) => model.id) };
+  // Model discovery has its own provider hook; catalog failures must not block token renewal.
+  return { ...credentials, ...refreshed };
 }
 
 export function getPowerCopilotApiKey(credentials: OAuthCredentials): string {

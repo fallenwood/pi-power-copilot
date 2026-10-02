@@ -85,37 +85,41 @@ test("performs a device-code login and stores a separate Copilot credential", as
   assert.deepEqual(credentials.availableModelIds, ["gpt-5.3-codex"]);
 });
 
-test("refreshes Copilot tokens and refreshes the model availability snapshot", async () => {
+test("renews enterprise Copilot tokens without fetching models or losing credential metadata", async () => {
   const calls: string[] = [];
+  const signal = new AbortController().signal;
   const credentials = await refreshPowerCopilotToken(
     {
       refresh: "enterprise-github-token",
       access: "expired-copilot-token",
       expires: 1,
-      enterpriseUrl: "enterprise.example.com",
+      enterpriseUrl: "https://enterprise.example.com/",
+      availableModelIds: ["previous-model"],
+      customMetadata: "preserved",
     },
-    new AbortController().signal,
-    async (input) => {
+    signal,
+    async (input, init) => {
       const url = String(input);
       calls.push(url);
+      assert.equal(init?.signal, signal);
+      assert.equal(new Headers(init?.headers).get("authorization"), "Bearer enterprise-github-token");
       if (url === "https://api.enterprise.example.com/copilot_internal/v2/token") {
         return response({
           token: "new-copilot-token;proxy-ep=proxy.enterprise-copilot.example",
           expires_at: Math.floor(Date.now() / 1000) + 3600,
         });
       }
-      if (url === "https://api.enterprise.githubcopilot.com/models") return response(modelCatalog);
       throw new Error(`Unexpected request: ${url}`);
     },
   );
 
-  assert.deepEqual(calls, [
-    "https://api.enterprise.example.com/copilot_internal/v2/token",
-    "https://api.enterprise.githubcopilot.com/models",
-  ]);
+  assert.deepEqual(calls, ["https://api.enterprise.example.com/copilot_internal/v2/token"]);
   assert.equal(credentials.refresh, "enterprise-github-token");
   assert.equal(credentials.access, "new-copilot-token;proxy-ep=proxy.enterprise-copilot.example");
-  assert.deepEqual(credentials.availableModelIds, ["gpt-5.3-codex"]);
+  assert.ok(credentials.expires > Date.now());
+  assert.equal(credentials.enterpriseUrl, "enterprise.example.com");
+  assert.deepEqual(credentials.availableModelIds, ["previous-model"]);
+  assert.equal(credentials.customMetadata, "preserved");
 });
 
 test("resolves the API host from the login enterprise URL or proxy endpoint", () => {

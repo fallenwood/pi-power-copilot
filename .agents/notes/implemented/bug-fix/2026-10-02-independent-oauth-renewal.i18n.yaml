@@ -1,0 +1,17 @@
+title:
+  en: Keep Copilot token renewal independent of model discovery
+  zh: 将 Copilot 令牌续期与模型发现解耦
+status: implemented
+sections:
+  Problem:
+    en: A successful Copilot token exchange was followed by a required catalog fetch and parse. Catalog failures or refresh timeouts became OAuth failures and prevented Pi from persisting the renewed token even when the GitHub refresh credential remained usable.
+    zh: 成功交换 Copilot 令牌后仍必须获取并解析模型目录。目录错误或刷新超时会变成 OAuth 失败，即使 GitHub 刷新凭据仍可用，也会阻止 Pi 持久化续期后的令牌。
+  Decision:
+    en: Renewal performs only the token exchange and preserves credential metadata. The provider discovery hook owns catalog updates; Pi owns scheduling, locking, and persistence. Runtime regression tests cover concurrent and repeated renewal, new-runtime reuse, failed-exchange retry, cancellation, and enterprise metadata. Documentation distinguishes renewable OAuth credentials from pasted API keys.
+    zh: 续期只执行令牌交换并保留凭据元数据。provider 的发现钩子负责目录更新，Pi 负责调度、锁和持久化。运行时回归测试覆盖并发及重复续期、新运行时复用、交换失败后重试、取消和企业版元数据。文档区分可续期的 OAuth 凭据与粘贴的 API key。
+  Alternatives considered:
+    en: Best-effort catalog fetching during renewal is rejected because it still consumes the shared refresh deadline and holds the credential lock despite an existing separate discovery hook.
+    zh: 不采用在续期时尽力获取目录的方案，因为已有独立的发现钩子，而该方案仍会消耗共享刷新时限并占用凭据锁。
+  Consequences:
+    en: Successful exchanges are persisted independently of catalog availability. Exchange errors and cancellation still propagate, with failed exchanges preserving stored credentials for retry. Invalid GitHub credentials require login; API keys remain non-renewable. Credential formats stay compatible, but renewal no longer updates availableModelIds; provider discovery supplies current model metadata.
+    zh: 成功的交换独立于目录可用性进行持久化。交换错误和取消仍向上传递，失败的交换保留存储的凭据以便重试。无效的 GitHub 凭据需要重新登录，API key 仍不能自动续期。凭据格式保持兼容，但续期不再更新 availableModelIds；最新模型元数据由 provider 的发现提供。
