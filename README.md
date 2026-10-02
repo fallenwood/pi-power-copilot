@@ -21,6 +21,7 @@ API-key login stores only the pasted token, with no refresh credential. If you p
 Both auth methods retrieve the account's model catalog through the provider's model-discovery hook. The `/models` response must contain a `data` array in the Copilot model format. Chat models need `id`, `name`, `capabilities.limits.max_context_window_tokens`, and `capabilities.limits.max_output_tokens`. `capabilities.supports.vision` and `capabilities.supports.reasoning_effort` configure Pi's model capabilities. Models marked `model_picker_enabled: false`, non-chat models, and models without a supported `/responses`, `/chat/completions`, or `/messages` endpoint are omitted.
 
 For each model, the extension prefers the Responses API, then Anthropic Messages, then Chat Completions. It uses Pi's built-in streaming implementations and does not log tokens or provider response bodies.
+For Claude models using Anthropic Messages, the extension sends the current Copilot credential as a Bearer `Authorization` header instead of an Anthropic `x-api-key` header.
 
 ## Development
 

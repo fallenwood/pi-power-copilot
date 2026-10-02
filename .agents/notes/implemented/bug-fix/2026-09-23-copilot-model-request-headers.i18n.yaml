@@ -1,17 +1,17 @@
 title:
-  en: Attach Copilot headers to discovered models
-  zh: 将 Copilot 请求头附加到动态发现的模型
+  en: Attach Copilot headers and Bearer auth to model requests
+  zh: 为模型请求附加 Copilot 请求头和 Bearer 认证
 status: implemented
 sections:
   Problem:
-    en: Power Copilot declared its IDE identity headers on the provider, but Pi's API adapters assemble chat request headers from each model. Dynamically discovered models therefore omitted Editor-Version and were rejected by the Copilot API.
-    zh: Power Copilot 在 provider 上声明 IDE 身份请求头，但 Pi 的 API adapter 从每个模型组装聊天请求头。因此，动态发现的模型缺少 Editor-Version，并被 Copilot API 拒绝。
+    en: Power Copilot declared its IDE identity headers on the provider, but Pi's API adapters assemble chat request headers from each model. Dynamically discovered models therefore omitted Editor-Version and were rejected by the Copilot API. Pi's generic Anthropic adapter also uses x-api-key for API-key credentials, while Copilot requires Bearer Authorization for Claude /messages requests.
+    zh: Power Copilot 在 provider 上声明 IDE 身份请求头，但 Pi 的 API adapter 从每个模型组装聊天请求头。因此，动态发现的模型缺少 Editor-Version，并被 Copilot API 拒绝。Pi 的通用 Anthropic adapter 还会用 x-api-key 发送 API-key 凭据，而 Copilot 的 Claude /messages 请求需要 Bearer Authorization。
   Decision:
-    en: Every dynamically discovered Power Copilot model carries the complete shared Copilot request header set, including the editor identity and GitHub API version. The provider and model discovery use the same definition.
-    zh: 每个动态发现的 Power Copilot 模型都携带完整的共享 Copilot 请求头集合，包括编辑器身份和 GitHub API 版本。provider 和模型发现使用同一定义。
+    en: Every dynamically discovered Power Copilot model carries the complete shared Copilot request header set, including the editor identity and GitHub API version. The provider and model discovery use the same definition. Only Anthropic Messages dispatch converts the active credential to Bearer auth and clears the generic Anthropic API key; other adapters remain unchanged. Credentials do not become static model headers.
+    zh: 每个动态发现的 Power Copilot 模型都携带完整的共享 Copilot 请求头集合，包括编辑器身份和 GitHub API 版本。provider 和模型发现使用同一定义。只有 Anthropic Messages 分发会将当前凭据转为 Bearer 认证并清除通用 Anthropic API key；其他 adapter 不变。凭据不会写入静态模型请求头。
   Alternatives considered:
-    en: Rely only on provider-level headers (not propagated by the current Pi request path); patch each API adapter invocation (duplicates dispatch logic instead of using supported model headers).
-    zh: 仅依赖 provider 级请求头（当前 Pi 请求路径不会传播）；分别修改每个 API adapter 调用（会重复分发逻辑，而不是使用受支持的模型请求头）。
+    en: Rely only on provider-level headers (not propagated by the current Pi request path); patch each API adapter invocation (duplicates dispatch logic instead of using supported model headers); store Copilot tokens in model headers (stale after credential refresh); reidentify models as github-copilot (changes provider identity and invokes unrelated built-in behavior).
+    zh: 仅依赖 provider 级请求头（当前 Pi 请求路径不会传播）；分别修改每个 API adapter 调用（会重复分发逻辑，而不是使用受支持的模型请求头）；把 Copilot 令牌写入模型请求头（凭据刷新后会过期）；将模型标识为 github-copilot（会改变 provider 身份并触发无关的内置行为）。
   Consequences:
-    en: OpenAI Responses, OpenAI Completions, and Anthropic Messages requests consistently receive the required IDE identity. Client identity or API-version changes must update the shared request header definition.
-    zh: OpenAI Responses、OpenAI Completions 和 Anthropic Messages 请求会一致地收到所需 IDE 身份。客户端身份或 API 版本变更时必须更新共享请求头定义。
+    en: OpenAI Responses, OpenAI Completions, and Anthropic Messages requests consistently receive the required IDE identity. Claude requests use the active credential as Bearer auth without x-api-key. Client identity or API-version changes must update the shared request header definition.
+    zh: OpenAI Responses、OpenAI Completions 和 Anthropic Messages 请求会一致地收到所需 IDE 身份。Claude 请求使用当前凭据作为 Bearer 认证，且不发送 x-api-key。客户端身份或 API 版本变更时必须更新共享请求头定义。

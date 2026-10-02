@@ -5,6 +5,7 @@ import {
 } from "@earendil-works/pi-ai/compat";
 import { createProvider, envApiKeyAuth, type Model } from "@earendil-works/pi-ai";
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { withCopilotBearerAuth } from "./anthropic-auth.ts";
 import { loginPowerCopilot, refreshPowerCopilotCredential } from "./auth.ts";
 import { fetchModelCatalog, type PowerCopilotApi } from "./catalog.ts";
 import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
@@ -13,6 +14,7 @@ import { resolvePowerCopilotBaseUrl } from "./oauth.ts";
 const DEFAULT_BASE_URL = "https://api.githubcopilot.com";
 
 function createPowerCopilotProvider() {
+  const anthropic = anthropicMessagesApi();
   return createProvider<PowerCopilotApi>({
     id: "power-copilot",
     name: "Power Copilot",
@@ -59,7 +61,12 @@ function createPowerCopilotProvider() {
       );
     },
     api: {
-      "anthropic-messages": anthropicMessagesApi(),
+      "anthropic-messages": {
+        stream: (model, context, options) =>
+          anthropic.stream(model, context, withCopilotBearerAuth(options)),
+        streamSimple: (model, context, options) =>
+          anthropic.streamSimple(model, context, withCopilotBearerAuth(options)),
+      },
       "openai-completions": openAICompletionsApi(),
       "openai-responses": openAIResponsesApi(),
     },

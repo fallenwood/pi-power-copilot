@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/auth.test.ts test/catalog.test.ts test/oauth.test.ts",
+    "test": "node --experimental-strip-types --test test/anthropic-auth.test.ts test/auth.test.ts test/catalog.test.ts test/oauth.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "pi": {
