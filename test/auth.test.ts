@@ -30,6 +30,7 @@ function createInteraction(answer: string) {
 function registeredProvider(): Provider {
   let provider: Provider | undefined;
   extension({
+    on() { return () => {}; },
     registerProvider(registered: Provider) {
       provider = registered;
     },

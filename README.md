@@ -23,6 +23,24 @@ Both auth methods retrieve the account's model catalog through the provider's mo
 For each model, the extension prefers the Responses API, then Anthropic Messages, then Chat Completions. It uses Pi's built-in streaming implementations and does not log tokens or provider response bodies.
 For Claude models using Anthropic Messages, the extension sends the current Copilot credential as a Bearer `Authorization` header instead of an Anthropic `x-api-key` header.
 
+### Custom context windows
+
+Create `power-copilot.json` in Pi's agent configuration directory (normally `~/.pi/agent`, or the directory selected by `PI_CODING_AGENT_DIR`):
+
+```json
+{
+  "contextWindows": {
+    "gpt-5.3-codex": 123456
+  }
+}
+```
+
+Keys are exact model IDs from `/models`. Each value is a token count: any positive safe integer **strictly less than** that model's `max_context_window_tokens` is accepted, without presets or step sizes. For a model with a 400000-token maximum, values from 1 through 399999 are valid. Zero, negative numbers, fractions, strings, and values at or above the maximum are rejected with an error, not silently clamped.
+
+Restart Pi after editing the file. Missing files, an empty object, and unconfigured models retain the advertised maximum. Remove a model's entry to restore its maximum. Entries for models not currently in the account's catalog remain inactive; their upper bounds are checked when those models become available. Malformed JSON, unsupported configuration fields, and file-read failures other than a missing file are reported.
+
+Overrides apply to both OAuth and API-key models, including cached catalogs. The cache retains the service's original limits, so increasing or removing an override does not require a new network fetch. Only `contextWindow` changes; API routing, reasoning capabilities, and the advertised output-token limit stay unchanged. Pi uses the effective window for context accounting and compaction; this does not change the server's limit or guarantee that a prompt fits a very small window. For small windows, adjust Pi's compaction reserve and retained-token settings accordingly. Avoid also overriding `contextWindow` for the same model in Pi's `models.json`, whose overrides are applied after provider metadata.
+
 ## Development
 
 ```sh

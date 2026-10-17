@@ -1,31 +1,60 @@
+import { join } from "node:path";
 import {
   anthropicMessagesApi,
   openAICompletionsApi,
   openAIResponsesApi,
 } from "@earendil-works/pi-ai/compat";
-import { createProvider, envApiKeyAuth, type Model } from "@earendil-works/pi-ai";
-import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
+import { createProvider, envApiKeyAuth, type Model, type Provider } from "@earendil-works/pi-ai";
+import { getAgentDir, type ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import { withCopilotBearerAuth } from "./anthropic-auth.ts";
 import { loginPowerCopilot, refreshPowerCopilotCredential } from "./auth.ts";
-import { fetchModelCatalog, type PowerCopilotApi } from "./catalog.ts";
+import { fetchModelCatalog, type PowerCopilotApi, type PowerCopilotModelConfig } from "./catalog.ts";
 import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
+import { applyContextWindows, ContextWindowError, readContextWindows } from "./context-window.ts";
 import { resolvePowerCopilotBaseUrl } from "./oauth.ts";
 
 const DEFAULT_BASE_URL = "https://api.githubcopilot.com";
 
-function createPowerCopilotProvider() {
+function createPowerCopilotProvider(): Provider<PowerCopilotApi> {
+  const configPath = join(getAgentDir(), "power-copilot.json");
+  const contextWindows = readContextWindows(configPath);
+  let configurationError: ContextWindowError | undefined;
+  function configured<T extends Pick<PowerCopilotModelConfig, "id" | "contextWindow">>(models: readonly T[]): T[] {
+    try {
+      const result = applyContextWindows(models, contextWindows, configPath);
+      configurationError = undefined;
+      return result;
+    } catch (error) {
+      if (error instanceof ContextWindowError) configurationError = error;
+      throw error;
+    }
+  }
+  function checkLoginConfiguration(): void {
+    if (configurationError) throw configurationError;
+  }
+  const apiKeyAuth = envApiKeyAuth("Power Copilot API key", []);
+  const apiKeyLogin = apiKeyAuth.login;
   const anthropic = anthropicMessagesApi();
-  return createProvider<PowerCopilotApi>({
+  const provider = createProvider<PowerCopilotApi>({
     id: "power-copilot",
     name: "Power Copilot",
     baseUrl: DEFAULT_BASE_URL,
     headers: COPILOT_REQUEST_HEADERS,
     auth: {
-      apiKey: envApiKeyAuth("Power Copilot API key", []),
+      apiKey: {
+        ...apiKeyAuth,
+        login: apiKeyLogin && (async (interaction) => {
+          checkLoginConfiguration();
+          return apiKeyLogin(interaction);
+        }),
+      },
       oauth: {
         name: "Power Copilot",
         isSubscription: true,
-        login: loginPowerCopilot,
+        login: async (interaction) => {
+          checkLoginConfiguration();
+          return loginPowerCopilot(interaction);
+        },
         refresh: refreshPowerCopilotCredential,
         toAuth: async (credential) => ({
           apiKey: credential.access,
@@ -52,6 +81,7 @@ function createPowerCopilotProvider() {
           : undefined;
       const modelBaseUrl = resolvePowerCopilotBaseUrl(token, enterpriseDomain);
       const models = await fetchModelCatalog(modelBaseUrl, token, signal);
+      configured(models);
       return models.map(
         (model): Model<PowerCopilotApi> => ({
           ...model,
@@ -71,8 +101,37 @@ function createPowerCopilotProvider() {
       "openai-responses": openAIResponsesApi(),
     },
   });
+  const refreshModels = provider.refreshModels;
+  let configuredModels: readonly Model<PowerCopilotApi>[] = [];
+  return {
+    ...provider,
+    // Keep the cached catalog's original limits so overrides remain reversible offline.
+    getModels: () => configuredModels,
+    refreshModels: refreshModels && (async (context) => {
+      if (context.stored) {
+        configured(
+          context.stored.models.filter((model) => model.provider === provider.id),
+        );
+      }
+      await refreshModels({
+        ...context,
+        publish: (publication) => context.publish({
+          ...publication,
+          update: () => {
+            publication.update?.();
+            configuredModels = configured(provider.getModels());
+          },
+        }),
+      });
+    }),
+  };
 }
 
 export default function (pi: ExtensionAPI): void {
   pi.registerProvider(createPowerCopilotProvider());
+  pi.on("session_start", async (_event, context) => {
+    const result = await context.modelRegistry.refresh({ allowNetwork: false, providers: ["power-copilot"] });
+    const error = result.errors.get("power-copilot");
+    if (error) throw error;
+  });
 }

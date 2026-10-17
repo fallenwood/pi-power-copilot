@@ -1,0 +1,17 @@
+title:
+  en: Configure per-model context windows below service limits
+  zh: 按模型配置低于服务上限的上下文窗口
+status: implemented
+sections:
+  Problem:
+    en: Discovered models expose only service maxima, while generic overrides do not validate smaller per-model budgets against those maxima.
+    zh: 发现的模型仅暴露服务端最大值，而通用覆盖配置不根据这些最大值校验按模型设置的较小预算。
+  Decision:
+    en: Read contextWindows from power-copilot.json in Pi's agent directory at registration. Accept arbitrary positive safe integers strictly below discovered maxima, retaining defaults and inactive unavailable-model entries. Report configuration errors at registration and bound errors during refresh, not synchronous reads. Publish effective windows for both authentication methods and all APIs while caching original limits, preserving output capabilities and Pi publication checks. Restart applies edits; offline increases and removal work. OAuth renewal remains independent.
+    zh: 注册时从 Pi agent 目录中的 power-copilot.json 读取 contextWindows。接受严格小于发现上限的任意正安全整数，保留默认值和不可用模型的未启用条目。注册时报告配置错误，刷新时而非同步读取时报告上限错误。为两种认证方式和所有 API 发布生效窗口，同时缓存原始上限，保留输出能力和 Pi 发布校验。重启应用修改；支持离线调大和删除。OAuth 续期保持独立。
+  Alternatives considered:
+    en: Generic models.json overrides lack upper-bound validation. Persisting reduced limits loses reversible offline configuration. Computing overrides during synchronous reads violates Pi's non-throwing contract and can hide errors.
+    zh: 通用 models.json 覆盖配置缺少上限校验。持久化缩小的上限会失去可逆的离线配置。在同步读取时计算覆盖值违反 Pi 不抛出异常的约定，可能隐藏错误。
+  Consequences:
+    en: A provider-specific file is added without credential or catalog format changes. Refresh failures preserve the last published catalog and report errors. Tiny budgets may conflict with compaction reserves or prompt sizes and do not guarantee successful requests. Later models.json overrides should not duplicate this setting. Regression tests cover boundaries, malformed input, authentication methods, APIs, cache preservation, offline edits, and refresh errors; translations remain aligned.
+    zh: 新增 provider 专属文件，不改变凭据或目录格式。刷新失败保留最后发布的目录并报告错误。极小预算可能与压缩预留或提示词大小冲突，不保证请求成功。后置的 models.json 覆盖配置不应重复此设置。回归测试覆盖边界、无效输入、认证方式、API、缓存保留、离线修改和刷新错误；翻译保持一致。

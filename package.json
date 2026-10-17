@@ -1,10 +1,10 @@
 {
   "name": "pi-power-copilot-provider",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
-    "test": "node --experimental-strip-types --test test/anthropic-auth.test.ts test/auth.test.ts test/catalog.test.ts test/oauth.test.ts",
+    "test": "node --experimental-strip-types --test test/anthropic-auth.test.ts test/auth.test.ts test/catalog.test.ts test/context-window.test.ts test/oauth.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "pi": {
