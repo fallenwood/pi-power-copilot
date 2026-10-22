@@ -35,7 +35,7 @@ function registeredProvider(
   try {
     let provider: Provider | undefined;
     extension({
-      on(event, handler) {
+      on(event: "session_start", handler: (event: { type: "session_start" }, context: ExtensionContext) => Promise<unknown>) {
         assert.equal(event, "session_start");
         sessionHandlers.push(async (context) => handler({ type: "session_start" }, context));
         return () => {};
@@ -153,7 +153,7 @@ for (const credential of credentials) {
     assert.deepEqual(runtime.getModels().map((model) => model.contextWindow), expected);
     assert.deepEqual((await runtime.getAvailable()).map((model) => model.contextWindow), expected);
     assert.ok(runtime.getModels().every((model) => model.maxTokens === 128000));
-    assert.ok((await store.read(provider.id))?.models.every((model) => model.contextWindow === 400000));
+    assert.ok((await store.read(provider.id))?.models.every((model) => "contextWindow" in model && model.contextWindow === 400000));
     assert.equal(fetchMock.mock.callCount(), 1);
 
     // Raising and removing overrides must work from the same cached service limits.
@@ -189,7 +189,7 @@ test("invalid overrides are surfaced by refresh for network and cached catalogs"
   maximum = 300000;
   assert.match((await runtime.refresh()).errors.get("power-copilot")?.message ?? "", /less than.*300000/);
   assert.equal(runtime.getModels()[0]?.contextWindow, 399999);
-  assert.equal((await store.read("power-copilot"))?.models[0]?.contextWindow, 400000);
+  assert.equal((await store.read("power-copilot"))?.models.filter((model) => "contextWindow" in model)[0]?.contextWindow, 400000);
 
   writeFileSync(path, '{"contextWindows":{"one":400000}}');
   const offline = createModels({ credentials: auth, modelsStore: store });

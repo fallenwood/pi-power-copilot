@@ -1,0 +1,4 @@
+- insert:
+    - id: power-copilot
+      name: pi-power-copilot-provider
+      config: {}

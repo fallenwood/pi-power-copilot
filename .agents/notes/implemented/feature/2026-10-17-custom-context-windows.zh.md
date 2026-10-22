@@ -14,7 +14,9 @@ Status: implemented
 
 配置语法、结构和整数错误会明确导致注册失败。上限错误通过模型刷新报告，包括离线缓存恢复，而同步模型读取不会抛出异常。成功发布的目录为 Pi 的模型列表、选择和上下文统计提供生效窗口，覆盖两种认证方式及所有支持的 API。输出 token 上限和其他能力保持不变。
 
-Pi 的目录缓存保留未经修改的服务端上限；只有发布的内存视图使用配置窗口。配置修改在重启后生效，调大或删除覆盖值也适用于离线缓存目录。发布继续使用 Pi 的代次和取消校验。OAuth 续期保持与配置校验和模型发现独立，参见[续期决策](../../bug-fix/2026-10-02-independent-oauth-renewal.zh.md)。
+Pi 的目录缓存保留未经修改的服务端上限；只有发布的内存视图使用配置窗口。配置修改在重启后生效，调大或删除覆盖值也适用于离线缓存目录。发布继续使用 Pi 的代次和取消校验。OAuth 续期保持与配置校验和模型发现独立，参见[续期决策](../bug-fix/2026-10-02-independent-oauth-renewal.zh.md)。
+
+Harness 通过自身 Cordis `contextWindows` 配置应用相同的上下文窗口校验，不读取 Pi 文件。其进程内目录及独立运行时所有权记录于[双运行时架构决策](../architecture/2026-10-22-dual-runtime-provider.zh.md)。[Models provider 设置决策](../architecture/2026-10-22-harness-model-provider-settings.zh.md)增加动态上下文窗口设置及目录失效，同时保留已准备调用快照。上述 Pi 配置和持久化缓存决策保持不变。
 
 ## Alternatives considered
 

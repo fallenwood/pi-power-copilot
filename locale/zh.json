@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Power Copilot",
+    "description": "动态发现 Copilot 模型，支持 GitHub OAuth、自动令牌续期和按模型设置上下文窗口。"
+  }
+}

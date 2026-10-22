@@ -14,7 +14,9 @@ The extension reads `power-copilot.json` from Pi's agent configuration directory
 
 Configuration syntax, shape, and integer errors fail registration explicitly. Upper-bound errors are reported through model refresh, including offline cache restoration, while synchronous model reads remain non-throwing. Successfully published catalogs expose the effective windows to Pi's model listing, selection, and context accounting for both authentication methods and all supported APIs. Output-token limits and other capabilities remain unchanged.
 
-Pi's catalog cache retains unmodified service limits; only the published in-memory view uses the configured windows. Configuration changes take effect after restart, and raising or removing an override works with an offline cached catalog. Publication continues to use Pi's generation and cancellation checks. OAuth renewal remains independent of configuration validation and model discovery, as described in [the renewal decision](../../bug-fix/2026-10-02-independent-oauth-renewal.md).
+Pi's catalog cache retains unmodified service limits; only the published in-memory view uses the configured windows. Configuration changes take effect after restart, and raising or removing an override works with an offline cached catalog. Publication continues to use Pi's generation and cancellation checks. OAuth renewal remains independent of configuration validation and model discovery, as described in [the renewal decision](../bug-fix/2026-10-02-independent-oauth-renewal.md).
+
+Harness applies the same context-window validation through its own Cordis `contextWindows` configuration rather than reading Pi's file. Its process-local catalog and independent runtime ownership are recorded in [the dual-runtime architecture decision](../architecture/2026-10-22-dual-runtime-provider.md). [The Models-provider settings decision](../architecture/2026-10-22-harness-model-provider-settings.md) adds live context-window settings and catalog invalidation while preserving prepared-call snapshots. The Pi configuration and persistent-cache decisions above remain unchanged.
 
 ## Alternatives considered
 

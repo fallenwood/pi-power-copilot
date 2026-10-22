@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "Power Copilot",
+    "description": "Discover Copilot models dynamically with GitHub OAuth, automatic token renewal, and per-model context windows."
+  }
+}

@@ -20,6 +20,10 @@ export function readContextWindows(path: string): ReadonlyMap<string, number> {
   } catch (error) {
     throw new Error(`Power-Copilot configuration "${path}" must contain valid JSON`, { cause: error });
   }
+  return parseContextWindows(config, path);
+}
+
+export function parseContextWindows(config: unknown, path = "power-copilot.json"): ReadonlyMap<string, number> {
   if (typeof config !== "object" || config === null || Array.isArray(config)) {
     throw new Error(`Power-Copilot configuration "${path}" must be an object`);
   }
@@ -48,13 +52,14 @@ export function applyContextWindows<T extends Pick<PowerCopilotModelConfig, "id"
   models: readonly T[],
   windows: ReadonlyMap<string, number>,
   configPath = "power-copilot.json",
+  restartHint = "restart Pi",
 ): T[] {
   return models.map((model) => {
     const contextWindow = windows.get(model.id);
     if (contextWindow === undefined) return model;
     if (contextWindow >= model.contextWindow) {
       throw new ContextWindowError(
-        `Power-Copilot configuration "${configPath}": contextWindows["${model.id}"] must be less than the model maximum (${model.contextWindow} tokens); received ${contextWindow}. Set a positive integer below ${model.contextWindow}, or remove this entry to use the default, then restart Pi. Logging in again will not fix this configuration error.`,
+        `Power-Copilot configuration "${configPath}": contextWindows["${model.id}"] must be less than the model maximum (${model.contextWindow} tokens); received ${contextWindow}. Set a positive integer below ${model.contextWindow}, or remove this entry to use the default, then ${restartHint}. Logging in again will not fix this configuration error.`,
       );
     }
     return { ...model, contextWindow };

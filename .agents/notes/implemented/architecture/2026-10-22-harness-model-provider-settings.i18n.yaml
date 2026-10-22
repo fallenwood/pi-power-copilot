@@ -1,0 +1,17 @@
+title:
+  en: Keep Harness provider sign-in inside Models settings
+  zh: 将 Harness provider 登录保留在 Models 设置中
+status: implemented
+sections:
+  Problem:
+    en: Provider setup belongs in Models settings, not chat commands and question cards. This decision replaces only the dual-runtime decision's command-based authorization UX. A route alone has no editable settings address; the mirror requires volatile fields, and the native provider editor is not an arbitrary schema or OAuth renderer.
+    zh: Provider 设置属于 Models 设置，不属于聊天命令及问题卡片。本决策仅替换双运行时决策中基于命令的授权 UX。单独的路由没有可编辑设置地址；镜像要求 volatile 字段，而原生 provider 编辑器不是任意 schema 或 OAuth 渲染器。
+  Decision:
+    en: Register power-copilot in the configurable-provider directory with the actual Loader options.id namespace and an empty settings path. Make contextWindows volatile so the namespace and automatic settings form exist; read overrides live and invalidate the next catalog while preserving prepared-call snapshots. Keep apiKeyEnv static with its existing fallback default and out of the mirror, whose API-key indicator cannot describe OAuth grants. Extend only the namespace-keyed provider-card slot. The ordinary Web Client uses an exact owner-only Connection HTTP bridge at /api/power-copilot for non-sensitive GET status and POST actions, reuses authorization flows and session commits, and never returns tokens. Poll only a pending authorization attempt. Native credential, settings, and adapter invalidation events refresh the existing stores and picker. Independent credentials, serialized renewal, fallback priority, Pi behavior, and the selected model are unchanged.
+    zh: 在 configurable-provider 目录中注册 power-copilot，使用真实 Loader options.id namespace 及空设置路径。将 contextWindows 设为 volatile，使 namespace 及自动设置表单存在；动态读取覆盖并使下次目录刷新失效，同时保留已准备调用快照。apiKeyEnv 保持静态、保留既有 fallback 默认值且不进入镜像，因为其 API-key 指示器不能描述 OAuth grant。仅扩展以 namespace 为 key 的 provider-card slot。普通 Web Client 使用精确的、仅 owner 可用的 Connection HTTP bridge /api/power-copilot，GET 提供非敏感状态、POST 执行操作，复用授权流程及 session commit，不返回 token。仅轮询正在进行的授权尝试。原生凭据、设置及 adapter 失效事件刷新现有 store 和选择器。独立凭据、串行续期、fallback 优先级、Pi 行为及已选模型保持不变。
+  Alternatives considered:
+    en: Commands put authorization on the wrong surface. Directory plus schema alone cannot supply an editable namespace and OAuth controls. Replacing Models or impersonating llm-pi-ai duplicates ownership or misrepresents configuration. Copying grants into API-key references duplicates secrets and breaks the credential contract.
+    zh: 命令将授权放在错误界面。仅目录及 schema 不能提供可编辑 namespace 及 OAuth 控件。替换 Models 或冒用 llm-pi-ai 会重复所有权或错误表达配置。将 grant 复制进 API-key 引用会重复秘密并破坏凭据契约。
+  Consequences:
+    en: The configured provider card remains visible before login, with page-local authentication and authoritative grant status. The integration adds only a small Client artifact and owner-only HTTP bridge, preserving native page ownership, invalidation, and prepared-call snapshots. Synthetic tests do not establish real GitHub browser authorization or rendered-page verification.
+    zh: 已配置 provider 卡片在登录前仍可见，拥有页面内认证及权威 grant 状态。集成仅增加小型 Client 产物和仅 owner 可用的 HTTP bridge，保留原生页面所有权、失效机制及已准备调用快照。合成测试不能证明真实 GitHub 浏览器授权或页面渲染已验证。

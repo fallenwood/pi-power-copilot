@@ -34,7 +34,7 @@ function registeredProvider(): Provider {
     registerProvider(registered: Provider) {
       provider = registered;
     },
-  } as ExtensionAPI);
+  } as unknown as ExtensionAPI);
   assert.ok(provider);
   return provider;
 }

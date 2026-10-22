@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Power Copilot">
+  <!-- Original artwork for this plugin: a power bolt between two coding brackets. -->
+  <rect width="64" height="64" rx="14" fill="#14263d"/>
+  <path d="m18 20-9 12 9 12m28-24 9 12-9 12" fill="none" stroke="#7dd3fc" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+  <path d="M35 10 22 35h10l-3 19 14-27H32z" fill="#fbbf24"/>
+</svg>
