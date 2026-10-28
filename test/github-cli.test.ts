@@ -1,11 +1,14 @@
 import assert from "node:assert/strict";
 import childProcess, { type ChildProcess, type ExecFileOptions } from "node:child_process";
 import test, { type TestContext } from "node:test";
-import type { OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai";
+import type { ApiKeyCredential, OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai";
 import {
+  isGitHubCliCredential,
   loginPowerCopilotWithGitHubCli,
   readGitHubCliToken,
   refreshPowerCopilotWithGitHubCli,
+  resolveGitHubCliAuth,
+  resolveLegacyGitHubCliAuth,
 } from "../src/github-cli.ts";
 
 type Command = {
@@ -39,10 +42,20 @@ function interaction(domain = "", signal = new AbortController().signal) {
   return { value, prompts, notices };
 }
 
-function response(value: unknown, status = 200): Response {
-  return new Response(JSON.stringify(value), {
-    status, headers: { "content-type": "application/json" },
+function forbidFetch(t: TestContext) {
+  return t.mock.method(globalThis, "fetch", async () => {
+    assert.fail("CLI credentials must not call device, exchange, or catalog endpoints");
   });
+}
+
+function cliCredential(hostname?: string): ApiKeyCredential {
+  return {
+    type: "api_key",
+    env: {
+      POWER_COPILOT_AUTH_SOURCE: "github-cli",
+      ...(hostname === undefined ? {} : { POWER_COPILOT_GITHUB_HOST: hostname }),
+    },
+  };
 }
 
 function assertPrivateError(error: unknown, secret: string): asserts error is Error {
@@ -134,125 +147,196 @@ test("in-flight cancellation preserves the reason rather than the child's stderr
   assert.equal(calls.length, 1);
 });
 
-for (const [domain, hostname, enterpriseUrl] of [
-  ["", "github.com", undefined],
-  ["github.com", "github.com", undefined],
-  ["https://company.ghe.com/", "company.ghe.com", "company.ghe.com"],
-] as const) {
-  test(`CLI login exchanges a token for ${domain || "the default GitHub host"} without device login or discovery`, async (t) => {
-    const githubToken = "opaque-private-github-token";
-    const calls = mockCommand(t, ({ callback }) => callback(null, `${githubToken}\n`, ""));
-    const requests: string[] = [];
-    t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      requests.push(url);
-      assert.equal(url, `https://api.${hostname}/copilot_internal/v2/token`);
-      assert.equal(new Headers(init?.headers).get("authorization"), `Bearer ${githubToken}`);
-      assert.ok(init?.signal instanceof AbortSignal);
-      return response({ token: "copilot-access", expires_at: 2_000_000_000 });
-    });
-    const { value, prompts, notices } = interaction(domain);
-    const saved = await loginPowerCopilotWithGitHubCli(value);
-    assert.equal(calls.length, 1);
-    assert.deepEqual(calls[0].args, ["auth", "token", "--hostname", hostname]);
-    assert.deepEqual(prompts.map((prompt) => prompt.type), ["text"]);
-    assert.ok(notices.some((notice) => notice.type === "progress"));
-    assert.equal(saved.type, "oauth");
-    assert.equal(saved.authMethod, "github-cli");
-    assert.equal(saved.refresh, "github-cli");
-    assert.equal(saved.access, "copilot-access");
-    assert.equal(saved.expires, 2_000_000_000_000 - 5 * 60 * 1000);
-    assert.equal(saved.enterpriseUrl, enterpriseUrl);
-    assert.ok(!JSON.stringify(saved).includes(githubToken));
-    assert.equal(requests.length, 1);
-  });
-}
-
-test("explains a denied CLI token exchange without exposing the CLI token or response body", async (t) => {
-  const secret = "opaque-private-exchange-secret";
-  mockCommand(t, ({ callback }) => callback(null, secret, ""));
-  const requests: string[] = [];
-  t.mock.method(globalThis, "fetch", async (input: string | URL | Request) => {
-    requests.push(String(input));
-    return response({ message: `Denied ${secret}` }, 403);
-  });
-  await assert.rejects(loginPowerCopilotWithGitHubCli(interaction().value), (error: unknown) => {
-    assertPrivateError(error, secret);
-    assert.match(error.message, /403/);
-    assert.match(error.message, /Copilot/i);
-    assert.match(error.message, /GitHub OAuth/i);
-    return true;
-  });
-  assert.deepEqual(requests, ["https://api.github.com/copilot_internal/v2/token"]);
+test("recognizes exact CLI source markers while giving explicit keys priority", () => {
+  assert.equal(isGitHubCliCredential(undefined), false);
+  assert.equal(isGitHubCliCredential({ type: "api_key" }), false);
+  for (const marker of ["", "github-oauth", "GitHub-CLI", "github-cli "]) {
+    assert.equal(isGitHubCliCredential({ type: "api_key", env: { POWER_COPILOT_AUTH_SOURCE: marker } }), false);
+  }
+  assert.equal(isGitHubCliCredential(cliCredential()), true);
+  for (const key of ["runtime-api-key", ""]) assert.equal(isGitHubCliCredential({ ...cliCredential(), key }), false);
 });
 
-for (const enterpriseUrl of [undefined, "company.ghe.com"]) {
-  test(`CLI renewal rereads gh and preserves metadata for ${enterpriseUrl ?? "github.com"}`, async (t) => {
-    const hostname = enterpriseUrl ?? "github.com";
-    let commandCount = 0;
-    const calls = mockCommand(t, ({ callback }) => callback(null, `private-gh-token-${++commandCount}\n`, ""));
-    const requests: string[] = [];
-    t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
-      const url = String(input);
-      requests.push(url);
-      assert.equal(url, `https://api.${hostname}/copilot_internal/v2/token`);
-      assert.equal(new Headers(init?.headers).get("authorization"), `Bearer private-gh-token-${requests.length}`);
-      return response({ token: `renewed-copilot-${requests.length}`, expires_at: 2_000_000_000 + requests.length });
-    });
-    const original: OAuthCredential = {
-      type: "oauth", authMethod: "github-cli", refresh: "github-cli", access: "expired", expires: 1,
-      ...(enterpriseUrl ? { enterpriseUrl } : {}),
-      availableModelIds: ["previous-model"], customMetadata: { retained: true },
-    };
-    const first = await refreshPowerCopilotWithGitHubCli(original, new AbortController().signal);
-    const second = await refreshPowerCopilotWithGitHubCli(first, new AbortController().signal);
-    assert.equal(calls.length, 2);
-    for (const call of calls) assert.deepEqual(call.args, ["auth", "token", "--hostname", hostname]);
-    for (const saved of [first, second]) {
-      assert.equal(saved.type, "oauth");
-      assert.equal(saved.authMethod, "github-cli");
-      assert.equal(saved.refresh, "github-cli");
-      assert.equal(saved.enterpriseUrl, enterpriseUrl);
-      assert.deepEqual(saved.availableModelIds, original.availableModelIds);
-      assert.deepEqual(saved.customMetadata, original.customMetadata);
-      assert.ok(!JSON.stringify(saved).includes("private-gh-token-"));
-    }
-    assert.equal(first.access, "renewed-copilot-1");
-    assert.equal(second.access, "renewed-copilot-2");
-    assert.equal(second.expires, 2_000_000_002_000 - 5 * 60 * 1000);
-    assert.equal(original.access, "expired");
-    assert.equal(original.expires, 1);
-    assert.equal(requests.length, 2);
+for (const [domain, hostname] of [
+  ["", "github.com"], ["github.com", "github.com"], ["https://company.ghe.com/", "company.ghe.com"],
+]) {
+  test(`CLI login validates gh for ${domain || "the default host"} and stores only non-secret API-key metadata`, async (t) => {
+    const secret = "opaque-private-raw-github-token";
+    const commands = mockCommand(t, ({ callback }) => callback(null, `${secret}\n`, ""));
+    const fetchMock = forbidFetch(t);
+    const { value, prompts, notices } = interaction(domain);
+    const saved = await loginPowerCopilotWithGitHubCli(value);
+    assert.deepEqual(saved, cliCredential(hostname));
+    assert.equal(commands.length, 1);
+    assert.deepEqual(commands[0].args, ["auth", "token", "--hostname", hostname]);
+    assert.deepEqual(prompts.map(({ type }) => type), ["text"]);
+    assert.ok(notices.some(({ type }) => type === "progress"));
+    assert.ok(!JSON.stringify(saved).includes(secret));
+    assert.ok(!JSON.stringify(notices).includes(secret));
+    assert.equal(fetchMock.mock.callCount(), 0);
   });
 }
 
-test("pre-cancelled CLI renewal neither runs gh nor calls GitHub", async (t) => {
-  const controller = new AbortController();
-  const reason = new Error("Renewal cancelled");
-  controller.abort(reason);
-  const commands = mockCommand(t, () => { throw new Error("Cancelled renewal must not spawn"); });
-  const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("Cancelled renewal must not fetch"); });
-  await assert.rejects(refreshPowerCopilotWithGitHubCli({
-    type: "oauth", authMethod: "github-cli", refresh: "github-cli", access: "expired", expires: 1,
-  }, controller.signal), (error) => error === reason);
+test("invalid CLI login hostnames fail before command or network access", async (t) => {
+  const commands = mockCommand(t, () => assert.fail("Invalid host must not spawn"));
+  const fetchMock = forbidFetch(t);
+  await assert.rejects(loginPowerCopilotWithGitHubCli(interaction("file:///private").value), /Invalid GitHub hostname/);
   assert.equal(commands.length, 0);
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 
-test("a failed CLI renewal leaves the supplied credential unchanged", async (t) => {
-  mockCommand(t, ({ callback }) => callback(null, "private-github-token", ""));
-  t.mock.method(globalThis, "fetch", async () => response({ message: "private-github-token" }, 503));
+for (const hostname of [undefined, "github.com", "company.ghe.com"]) {
+  test(`CLI resolution rereads raw gh output for ${hostname ?? "the default host"} without exchange`, async (t) => {
+    let reads = 0;
+    const commands = mockCommand(t, ({ callback }) => callback(null, `private-raw-token-${++reads}\n`, ""));
+    const fetchMock = forbidFetch(t);
+    const credential = cliCredential(hostname);
+    const snapshot = structuredClone(credential);
+    const signal = new AbortController().signal;
+    for (let index = 1; index <= 2; index++) {
+      assert.deepEqual(await resolveGitHubCliAuth(credential, signal), {
+        auth: {
+          apiKey: `private-raw-token-${index}`,
+          baseUrl: hostname === "company.ghe.com" ? "https://api.enterprise.githubcopilot.com" : "https://api.githubcopilot.com",
+        },
+        source: "GitHub CLI",
+      });
+    }
+    assert.equal(commands.length, 2);
+    for (const command of commands) {
+      assert.deepEqual(command.args, ["auth", "token", "--hostname", hostname ?? "github.com"]);
+      assert.equal(command.options.signal, signal);
+    }
+    assert.deepEqual(credential, snapshot);
+    assert.equal(fetchMock.mock.callCount(), 0);
+  });
+}
+
+test("raw CLI resolution retains the existing token proxy routing", async (t) => {
+  const rawToken = "private-raw-token;proxy-ep=proxy.business.githubcopilot.com";
+  mockCommand(t, ({ callback }) => callback(null, rawToken, ""));
+  const fetchMock = forbidFetch(t);
+  assert.deepEqual(await resolveGitHubCliAuth(cliCredential(), new AbortController().signal), {
+    auth: { apiKey: rawToken, baseUrl: "https://api.business.githubcopilot.com" }, source: "GitHub CLI",
+  });
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("CLI login and resolution sanitize command failure, preserve input, and retry without fetching", async (t) => {
+  const secret = "private-resolution-failure";
+  let attempts = 0;
+  const commands = mockCommand(t, ({ callback }) => {
+    if (++attempts <= 2) callback(new Error(secret), secret, secret);
+    else callback(null, "new-raw-github-token", "");
+  });
+  const fetchMock = forbidFetch(t);
+  const credential = cliCredential("github.com");
+  const snapshot = structuredClone(credential);
+  for (const operation of [
+    () => loginPowerCopilotWithGitHubCli(interaction().value),
+    () => resolveGitHubCliAuth(credential, new AbortController().signal),
+  ]) {
+    await assert.rejects(operation(), (error: unknown) => { assertPrivateError(error, secret); return true; });
+  }
+  assert.deepEqual(credential, snapshot);
+  assert.equal((await resolveGitHubCliAuth(credential, new AbortController().signal)).auth.apiKey, "new-raw-github-token");
+  assert.equal(commands.length, 3);
+  assert.deepEqual(credential, snapshot);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("pre-cancelled CLI login and resolution neither spawn nor mutate credentials", async (t) => {
+  const controller = new AbortController();
+  const reason = new Error("CLI operation cancelled");
+  controller.abort(reason);
+  const commands = mockCommand(t, () => assert.fail("Cancelled operation must not spawn"));
+  const fetchMock = forbidFetch(t);
+  const credential = cliCredential();
+  const snapshot = structuredClone(credential);
+  await assert.rejects(loginPowerCopilotWithGitHubCli(interaction("", controller.signal).value), (error) => error === reason);
+  await assert.rejects(resolveGitHubCliAuth(credential, controller.signal), (error) => error === reason);
+  assert.deepEqual(credential, snapshot);
+  assert.equal(commands.length, 0);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("in-flight resolution cancellation preserves its reason and the credential", async (t) => {
+  const controller = new AbortController();
+  const reason = new Error("Resolution cancelled");
+  mockCommand(t, ({ options, callback }) => {
+    options.signal!.addEventListener("abort", () => callback(new Error("private abort output"), "", "private stderr"), { once: true });
+  });
+  const fetchMock = forbidFetch(t);
+  const credential = cliCredential();
+  const snapshot = structuredClone(credential);
+  const rejected = assert.rejects(resolveGitHubCliAuth(credential, controller.signal), (error) => error === reason);
+  controller.abort(reason);
+  await rejected;
+  assert.deepEqual(credential, snapshot);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+for (const enterpriseUrl of [undefined, "company.ghe.com"]) {
+  test(`legacy CLI refresh clears secrets and retains metadata for ${enterpriseUrl ?? "github.com"}`, async (t) => {
+    let reads = 0;
+    const commands = mockCommand(t, ({ callback }) => callback(null, `private-current-gh-token-${++reads}\n`, ""));
+    const fetchMock = forbidFetch(t);
+    const original: OAuthCredential = {
+      type: "oauth", authMethod: "github-cli", refresh: "old-persisted-github-secret", access: "expired-copilot-secret", expires: 1,
+      ...(enterpriseUrl ? { enterpriseUrl } : {}), availableModelIds: ["previous-model"], customMetadata: { retained: true },
+    };
+    const snapshot = structuredClone(original);
+    const first = await refreshPowerCopilotWithGitHubCli(original, new AbortController().signal);
+    const second = await refreshPowerCopilotWithGitHubCli(first, new AbortController().signal);
+    for (const saved of [first, second]) {
+      assert.deepEqual(saved, { ...original, refresh: "github-cli", access: "", expires: Number.MAX_SAFE_INTEGER });
+      assert.ok(!JSON.stringify(saved).includes("private-current-gh-token-"));
+      assert.ok(!JSON.stringify(saved).includes("old-persisted-github-secret"));
+      assert.ok(!JSON.stringify(saved).includes("expired-copilot-secret"));
+    }
+    assert.deepEqual(original, snapshot);
+    assert.equal(commands.length, 2);
+    for (const command of commands) assert.deepEqual(command.args, ["auth", "token", "--hostname", enterpriseUrl ?? "github.com"]);
+    assert.equal(fetchMock.mock.callCount(), 0);
+  });
+}
+
+test("valid legacy CLI credentials resolve current raw tokens rather than old persisted access", async (t) => {
+  let reads = 0;
+  mockCommand(t, ({ callback }) => callback(null, `raw-legacy-token-${++reads}`, ""));
+  const fetchMock = forbidFetch(t);
+  const original: OAuthCredential = {
+    type: "oauth", authMethod: "github-cli", refresh: "github-cli", access: "old-access", expires: Number.MAX_SAFE_INTEGER,
+  };
+  const snapshot = structuredClone(original);
+  for (let index = 1; index <= 2; index++) {
+    const result = await resolveLegacyGitHubCliAuth(original, new AbortController().signal);
+    assert.equal(result.auth.apiKey, `raw-legacy-token-${index}`);
+    assert.equal(result.auth.baseUrl, "https://api.githubcopilot.com");
+  }
+  assert.deepEqual(original, snapshot);
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("failed or pre-cancelled legacy CLI refresh preserves its saved credential", async (t) => {
+  const secret = "private-legacy-command-error";
+  const commands = mockCommand(t, ({ callback }) => callback(new Error(secret), secret, secret));
+  const fetchMock = forbidFetch(t);
   const original: OAuthCredential = {
     type: "oauth", authMethod: "github-cli", refresh: "github-cli", access: "expired", expires: 1,
     availableModelIds: ["old-model"], customMetadata: "preserved",
   };
   const snapshot = structuredClone(original);
   await assert.rejects(refreshPowerCopilotWithGitHubCli(original, new AbortController().signal), (error: unknown) => {
-    assertPrivateError(error, "private-github-token");
-    return true;
+    assertPrivateError(error, secret); return true;
   });
+  const controller = new AbortController();
+  const reason = new Error("Legacy refresh cancelled");
+  controller.abort(reason);
+  await assert.rejects(refreshPowerCopilotWithGitHubCli(original, controller.signal), (error) => error === reason);
   assert.deepEqual(original, snapshot);
+  assert.equal(commands.length, 1);
+  assert.equal(fetchMock.mock.callCount(), 0);
 });
 
-// This suite intentionally uses the public helpers rather than real user auth.json or gh state.
-// Provider/runtime compatibility and locked persistence are covered in auth.test.ts.
+// These tests never invoke real gh or user credentials. Provider/runtime integration is covered separately.

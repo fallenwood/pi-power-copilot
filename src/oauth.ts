@@ -210,7 +210,7 @@ async function pollForGitHubAccessToken(
   throw new Error("GitHub device authorization expired");
 }
 
-export async function exchangeForCopilotToken(
+async function exchangeForCopilotToken(
   githubAccessToken: string,
   enterpriseDomain: string | undefined,
   signal: AbortSignal,

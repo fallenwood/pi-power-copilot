@@ -4,6 +4,8 @@ Status: implemented
 
 [English](2026-10-28-github-cli-login.md) | 中文
 
+**已部分取代：**[GitHub CLI token 直接认证](../bug-fix/2026-10-28-direct-github-cli-token.zh.md)取代本说明中强制兑换的假设、OAuth 来源选择器、CLI 凭据格式及按到期时间获取 token 的行为。下文这些部分记录原有决策，不代表当前 CLI 行为。固定参数的私有 runner、取消、有界输出、错误脱敏、不复制长期 token 及运行时隔离的理由仍以本说明为准。
+
 ## Problem
 
 已经通过 GitHub CLI 登录的 Pi 用户需要在不再次进行浏览器或设备授权的情况下登录 Power Copilot。将 `!gh auth token` 配置为 API key 只会提供 GitHub token，而 Power Copilot 的模型发现和请求需要兑换后的 Copilot token。将 CLI token 复制到另一个凭据存储还会重复保存长期秘密，并使续期与 gh 的当前凭据脱节。

@@ -10,7 +10,7 @@ Install the package with Pi's package manager, or load the extension directly du
 pi --extension ./src/index.ts
 ```
 
-Use `/login`, select **Power Copilot**, then choose **GitHub CLI / OAuth** or **API key**. The first option lets you choose **GitHub CLI (gh auth token)** or the existing **GitHub OAuth** browser/device flow. API-key login uses Pi's standard secret-entry flow. Credentials belong to the separate `power-copilot` provider; the plugin does not read or reuse the built-in `github-copilot` credential.
+Use `/login`, select **Power Copilot**, then choose **API key** to select **GitHub CLI (gh auth token)** or **Paste API key**. Pasting uses Pi's standard secret-entry flow. The separate **OAuth** option retains GitHub's browser/device authorization flow. Credentials belong to the separate `power-copilot` provider; the plugin does not read or reuse the built-in `github-copilot` credential.
 
 ### Use GitHub CLI instead of browser authorization
 
@@ -21,11 +21,11 @@ gh auth login --hostname github.com
 gh auth status --hostname github.com
 ```
 
-In Pi, run `/login` → **Power Copilot** → **GitHub CLI / OAuth** → **GitHub CLI (gh auth token)**. Leave the hostname blank for `github.com`, or enter your GitHub Enterprise hostname. The plugin executes `gh auth token --hostname <hostname>` privately, exchanges the GitHub token for a short-lived Copilot token, and lets Pi save the renewable credential. There is no device code or browser authorization in this plugin login path. `gh` must be on the PATH inherited by Pi.
+In Pi, run `/login` → **Power Copilot** → **API key** → **GitHub CLI (gh auth token)**. Leave the hostname blank for `github.com`, or enter your GitHub Enterprise hostname. The plugin privately executes `gh auth token --hostname <hostname>` and sends its **raw output directly as the Copilot API bearer token**, exactly like a manually supplied API key. It does not call `/copilot_internal/v2/token`, request a device code, or start browser authorization. `gh` must be on the PATH inherited by Pi.
 
-Only the Copilot token and a CLI-source marker are saved; the GitHub token is not copied into Pi's credential file. On expiry, the plugin runs `gh auth token` again for the same hostname and exchanges a new Copilot token. Switching gh's active account (or changing its token environment variables) affects the next renewal; sign in again to switch immediately. A CLI failure preserves the previous saved credential for retry, without falling back to browser authorization. The command has a ten-second timeout and the token exchange a thirty-second timeout.
+Login validates the CLI source and saves only an `api_key` credential with `env.POWER_COPILOT_AUTH_SOURCE: github-cli` and `env.POWER_COPILOT_GITHUB_HOST: <hostname>`, without a `key` or token value. Each authentication resolution and network catalog discovery re-reads gh; no artificial token expiry or OAuth renewal is involved. Switching gh's active account or token environment affects the next resolution. Availability checks do not execute gh. Failures leave the source configuration intact for retry, without falling back to browser authorization. The non-interactive command has a ten-second timeout and bounded private output.
 
-A GitHub CLI token is **not guaranteed** to be eligible for Copilot. If exchange returns 401/403, check your account's Copilot access and organization policy, or choose **GitHub OAuth** instead. Adding scopes is not a guaranteed fix. Do not configure `!gh auth token` as a Power Copilot API key: that path passes the GitHub token directly without exchanging it. Do not run the token command in chat or paste its output into chat. This CLI option is Pi-only; Harness's Models-page sign-in remains unchanged.
+An exchange endpoint's 403 does **not** establish that the same token is unusable directly: a raw gh token can work through the API-key path while exchange is denied. Direct access still depends on the token/account/service permissions. Earlier CLI logins stored in an OAuth-shaped record also bypass exchange and read gh directly; sign in through the new **API key** menu to replace that legacy record. Do not run the token command in chat or paste its output into chat. This CLI option is Pi-only; Harness's Models-page sign-in remains unchanged.
 
 Pi versions from 0.87.1 through 1.x are supported (validated with 0.87.1 and 1.1.0). The package's `pi.extensions` entry remains unchanged; Pi does not load the Harness entry point.
 

@@ -2,6 +2,12 @@ title:
   en: Use GitHub CLI credentials for Pi Power Copilot
   zh: 在 Pi Power Copilot 中使用 GitHub CLI 凭据
 status: implemented
+partially_superseded_by:
+  en: ../bug-fix/2026-10-28-direct-github-cli-token.md
+  zh: ../bug-fix/2026-10-28-direct-github-cli-token.zh.md
+supersession_scope:
+  en: Mandatory exchange, the OAuth-source selector, CLI credential format, and expiry-based retrieval are historical. The fixed-argv private runner, cancellation, bounded output, error redaction, no long-lived token copies, and runtime separation remain authoritative in this note.
+  zh: 强制兑换、OAuth 来源选择器、CLI 凭据格式及按到期时间获取 token 的行为已成为历史。固定参数的私有 runner、取消、有界输出、错误脱敏、不复制长期 token 及运行时隔离的理由仍以本说明为准。
 sections:
   Problem:
     en: Pi users need to reuse gh credentials without another browser authorization. Raw gh output is a GitHub token, not an exchanged Copilot token, and copying it duplicates a long-lived secret.

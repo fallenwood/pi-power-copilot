@@ -1,4 +1,4 @@
-import type { OAuthCredential, ProviderAuthInteraction } from "@earendil-works/pi-ai";
+import { envApiKeyAuth, type ApiKeyCredential, type OAuthCredential, type ProviderAuthInteraction } from "@earendil-works/pi-ai";
 import type { OAuthLoginCallbacks } from "@earendil-works/pi-ai/compat";
 import { loginPowerCopilot as loginWithGitHubOAuth, refreshPowerCopilotToken } from "./oauth.ts";
 import { loginPowerCopilotWithGitHubCli, refreshPowerCopilotWithGitHubCli } from "./github-cli.ts";
@@ -20,20 +20,20 @@ export async function loginPowerCopilot(interaction: ProviderAuthInteraction): P
   return { ...credentials, type: "oauth", authMethod: "github-oauth" };
 }
 
-/** Pi-only source selector; Harness keeps its explicit GitHub OAuth page flow. */
-export async function loginPowerCopilotWithSourceSelection(interaction: ProviderAuthInteraction): Promise<OAuthCredential> {
+/** Pi-only API-key source selector; Harness keeps its existing secret-entry page. */
+export async function loginPowerCopilotApiKeyWithSourceSelection(interaction: ProviderAuthInteraction): Promise<ApiKeyCredential> {
   interaction.signal.throwIfAborted();
   const source = await interaction.prompt({
-    type: "select", message: "Choose a GitHub credential source",
+    type: "select", message: "Choose an API key source",
     options: [
-      { id: "github-oauth", label: "GitHub OAuth", description: "Authorize with a browser/device code" },
-      { id: "github-cli", label: "GitHub CLI (gh auth token)", description: "Use gh's current account without browser authorization" },
+      { id: "api-key", label: "Paste API key", description: "Enter a token using Pi's secret prompt" },
+      { id: "github-cli", label: "GitHub CLI (gh auth token)", description: "Read gh's current token directly without OAuth exchange" },
     ],
   });
   interaction.signal.throwIfAborted();
   if (source === "github-cli") return loginPowerCopilotWithGitHubCli(interaction);
-  if (source === "github-oauth") return loginPowerCopilot(interaction);
-  throw new Error("Unknown GitHub credential source");
+  if (source === "api-key") return envApiKeyAuth("Power Copilot API key", []).login!(interaction);
+  throw new Error("Unknown API key source");
 }
 
 export async function refreshPowerCopilotCredential(

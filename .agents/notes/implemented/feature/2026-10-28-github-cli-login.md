@@ -4,6 +4,8 @@ Status: implemented
 
 English | [中文](2026-10-28-github-cli-login.zh.md)
 
+**Partially superseded:** [Direct GitHub CLI token authentication](../bug-fix/2026-10-28-direct-github-cli-token.md) replaces this note's mandatory-exchange assumption, OAuth-source selector, CLI credential format, and expiry-based token retrieval. Those portions below document the original decision, not current CLI behavior. The fixed-argv private runner, cancellation, bounded output, error redaction, no long-lived token copies, and runtime separation remain authoritative here.
+
 ## Problem
 
 Pi users already signed in through GitHub CLI need a Power Copilot login without another browser/device authorization. Configuring `!gh auth token` as an API key only supplies a GitHub token, while Power Copilot model discovery and requests need an exchanged Copilot token. Copying the CLI token into another credential store also duplicates a long-lived secret and disconnects renewal from gh's current credentials.

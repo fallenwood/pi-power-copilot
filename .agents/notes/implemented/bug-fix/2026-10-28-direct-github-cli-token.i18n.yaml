@@ -1,0 +1,20 @@
+title:
+  en: Authenticate with raw GitHub CLI tokens without exchange
+  zh: 使用 GitHub CLI 原始 token 认证而不兑换
+status: implemented
+partially_supersedes:
+  en: ../feature/2026-10-28-github-cli-login.md
+  zh: ../feature/2026-10-28-github-cli-login.zh.md
+sections:
+  Problem:
+    en: The user reports that the same raw gh token succeeds as this plugin's Harness API key while mandatory Copilot exchange returns 403. Exchange rejection does not establish that direct authentication is unavailable. The initial decision's exchange, OAuth-source UI, credential format, and expiry semantics are replaced, while private runner security remains owned by that note.
+    zh: 用户报告同一 gh 原始 token 能作为本插件的 Harness API key 使用，而强制 Copilot 兑换返回 403。兑换拒绝不能证明直接认证不可用。替换原决策的兑换、OAuth 来源界面、凭据格式及到期语义，私有 runner 安全仍由原说明拥有。
+  Decision:
+    en: Pi's API-key login offers Paste API key or GitHub CLI. CLI login validates gh then stores only an api_key source marker and normalized hostname without a key or token. Every resolution executes gh and uses raw output directly with existing Bearer and base-URL routing; checks execute no command, and explicit keys including empty strings override the marker. Failure preserves source configuration for retry. Legacy github-cli OAuth records dynamically resolve raw gh output even when not expired; compatibility refresh validates gh, clears access, uses the fixed refresh marker and MAX_SAFE_INTEGER, and retains metadata. Re-login migrates storage. Harness's default-disabled CLI behavior and browser OAuth remain unchanged without silent fallback or credential transfer.
+    zh: Pi 的 API-key 登录提供 Paste API key 或 GitHub CLI。CLI 登录验证 gh 后只保存 api_key 来源标记及规范化域名，不含 key 或 token。每次解析执行 gh 并以既有 Bearer 和 base-URL 路由直接使用原始输出；检查不执行命令，显式 key 包括空字符串优先于标记。失败保留来源配置供重试。旧 github-cli OAuth 记录即使未到期也动态解析 gh 原始输出；兼容刷新验证 gh、清空 access、使用固定 refresh 标记及 MAX_SAFE_INTEGER，并保留元数据。重新登录迁移存储。Harness 默认禁用 CLI 的行为及浏览器 OAuth 保持不变，不静默回退或转移凭据。
+  Alternatives considered:
+    en: Keeping exchange preserves the observed 403. Raw output in OAuth access with fabricated expiry misrepresents an API-key source and copies secrets. Generic Pi command keys use shell execution and process-lifetime caching instead of the existing fresh private runner. Removing browser OAuth is unnecessary for correcting CLI semantics.
+    zh: 保留兑换会保留已观察到的 403。将原始输出存入 OAuth access 并伪造到期时间会错误表示 API-key 来源并复制秘密。Pi 通用命令 key 使用 shell 执行和进程生命周期缓存，不同于已有可重新读取的私有 runner。纠正 CLI 语义不需要移除浏览器 OAuth。
+  Consequences:
+    en: Account changes affect the next resolution; gh on Pi's PATH and direct service authorization remain required. Real-token acceptance is user-reported, not independently verified. Synthetic tests preserve command safety and cover zero helper fetches, exact markers, key precedence, fresh raw reads, routing, secret-free storage, compatibility metadata, cancellation, and retry. Provider tests cover discovery and protocols. Bilingual sections, paragraphs, lists, and links are aligned.
+    zh: 账户变化影响下次解析；仍需 Pi PATH 中的 gh 及直接服务授权。真实 token 被接受来自用户报告，未独立验证。合成测试保留命令安全并覆盖辅助函数零 fetch、精确标记、key 优先、重新读取原始输出、路由、不存秘密、兼容元数据、取消及重试。provider 测试覆盖发现和协议。双语章节、段落、列表及链接结构一致。

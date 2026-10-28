@@ -267,7 +267,7 @@ for (const type of ["api_key", "oauth"] as const) {
     assert.equal(runtime.getModel("power-copilot", "gpt-6.1-sol")?.contextWindow, 400000);
     const credential = await runtime.login("power-copilot", "api_key", {
       signal: new AbortController().signal,
-      prompt: async () => "new-key",
+      prompt: async (prompt) => prompt.type === "select" ? "api-key" : "new-key",
       notify: () => {},
     });
     assert.deepEqual(credential, { type: "api_key", key: "new-key" });

@@ -5,11 +5,12 @@ import {
 } from "@earendil-works/pi-ai/compat";
 import { createProvider, envApiKeyAuth, type Model, type Provider } from "@earendil-works/pi-ai";
 import { withCopilotBearerAuth } from "./anthropic-auth.ts";
-import { loginPowerCopilot, loginPowerCopilotWithSourceSelection, refreshPowerCopilotCredential } from "./auth.ts";
+import { loginPowerCopilot, loginPowerCopilotApiKeyWithSourceSelection, refreshPowerCopilotCredential } from "./auth.ts";
+import { isGitHubCliCredential, resolveGitHubCliAuth, resolveLegacyGitHubCliAuth } from "./github-cli.ts";
 import { fetchModelCatalog, type PowerCopilotApi, type PowerCopilotModelConfig } from "./catalog.ts";
 import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
 import { applyContextWindows, ContextWindowError, readContextWindows } from "./context-window.ts";
-import { resolvePowerCopilotBaseUrl } from "./oauth.ts";
+import { normalizeGitHubDomain, resolvePowerCopilotBaseUrl } from "./oauth.ts";
 
 const DEFAULT_BASE_URL = "https://api.githubcopilot.com";
 
@@ -46,44 +47,69 @@ export function createPowerCopilotProvider(
         ...apiKeyAuth,
         login: apiKeyLogin && (async (interaction) => {
           checkLoginConfiguration();
-          return apiKeyLogin(interaction);
+          return options.githubCliLogin
+            ? loginPowerCopilotApiKeyWithSourceSelection(interaction)
+            : apiKeyLogin(interaction);
         }),
+        ...(options.githubCliLogin ? {
+          check: async (input: Parameters<typeof apiKeyAuth.resolve>[0]) => {
+            input.signal.throwIfAborted();
+            if (isGitHubCliCredential(input.credential)) return { type: "api_key" as const, source: "GitHub CLI" };
+            const resolved = await apiKeyAuth.resolve(input);
+            return resolved ? { type: "api_key" as const, source: resolved.source } : undefined;
+          },
+          resolve: async (input: Parameters<typeof apiKeyAuth.resolve>[0]) => {
+            if (!isGitHubCliCredential(input.credential)) return apiKeyAuth.resolve(input);
+            const resolved = await resolveGitHubCliAuth(input.credential!, input.signal);
+            // Pi forwards resolved key + env (not AuthResult.baseUrl) to the discovery hook.
+            return { ...resolved, env: input.credential!.env };
+          },
+        } : {}),
       },
       oauth: {
         name: "Power Copilot",
-        ...(options.githubCliLogin ? { loginLabel: "GitHub CLI / OAuth" } : {}),
         isSubscription: true,
         login: async (interaction) => {
           checkLoginConfiguration();
-          return options.githubCliLogin
-            ? loginPowerCopilotWithSourceSelection(interaction)
-            : loginPowerCopilot(interaction);
+          return loginPowerCopilot(interaction);
         },
         refresh: refreshPowerCopilotCredential,
-        toAuth: async (credential) => ({
-          apiKey: credential.access,
-          baseUrl: resolvePowerCopilotBaseUrl(
-            credential.access,
-            typeof credential.enterpriseUrl === "string" ? credential.enterpriseUrl : undefined,
-          ),
-        }),
+        toAuth: async (credential) => credential.authMethod === "github-cli"
+          ? (await resolveLegacyGitHubCliAuth(credential, AbortSignal.timeout(10_000))).auth
+          : {
+            apiKey: credential.access,
+            baseUrl: resolvePowerCopilotBaseUrl(
+              credential.access,
+              typeof credential.enterpriseUrl === "string" ? credential.enterpriseUrl : undefined,
+            ),
+          },
       },
     },
     models: [],
     fetchModels: async ({ credential, signal }) => {
-      const token =
+      const cliAuth = options.githubCliLogin && credential?.type === "api_key" && isGitHubCliCredential(credential)
+        ? await resolveGitHubCliAuth(credential, signal)
+        : credential?.type === "oauth" && credential.authMethod === "github-cli"
+          ? await resolveLegacyGitHubCliAuth(credential, signal)
+          : undefined;
+      const token = cliAuth?.auth.apiKey ?? (
         credential?.type === "oauth"
           ? credential.access
           : credential?.type === "api_key"
             ? credential.key
-            : undefined;
+            : undefined);
       if (!token) throw new Error("Power Copilot authentication did not provide an access token");
 
       const enterpriseDomain =
         credential?.type === "oauth" && typeof credential.enterpriseUrl === "string"
           ? credential.enterpriseUrl
-          : undefined;
-      const modelBaseUrl = resolvePowerCopilotBaseUrl(token, enterpriseDomain);
+          : options.githubCliLogin && credential?.type === "api_key" &&
+              credential.env?.POWER_COPILOT_AUTH_SOURCE === "github-cli"
+            ? normalizeGitHubDomain(credential.env.POWER_COPILOT_GITHUB_HOST ?? "")
+            : undefined;
+      const modelBaseUrl = cliAuth?.auth.baseUrl ?? resolvePowerCopilotBaseUrl(
+        token, enterpriseDomain === "github.com" ? undefined : enterpriseDomain,
+      );
       const models = await fetchModelCatalog(modelBaseUrl, token, signal);
       configured(models);
       return models.map(
