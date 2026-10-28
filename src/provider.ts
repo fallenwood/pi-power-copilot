@@ -5,7 +5,7 @@ import {
 } from "@earendil-works/pi-ai/compat";
 import { createProvider, envApiKeyAuth, type Model, type Provider } from "@earendil-works/pi-ai";
 import { withCopilotBearerAuth } from "./anthropic-auth.ts";
-import { loginPowerCopilot, refreshPowerCopilotCredential } from "./auth.ts";
+import { loginPowerCopilot, loginPowerCopilotWithSourceSelection, refreshPowerCopilotCredential } from "./auth.ts";
 import { fetchModelCatalog, type PowerCopilotApi, type PowerCopilotModelConfig } from "./catalog.ts";
 import { COPILOT_REQUEST_HEADERS } from "./copilot-headers.ts";
 import { applyContextWindows, ContextWindowError, readContextWindows } from "./context-window.ts";
@@ -17,6 +17,7 @@ export function createPowerCopilotProvider(
   configPath: string,
   contextWindows = readContextWindows(configPath),
   restartHint = "restart Pi",
+  options: { githubCliLogin?: boolean } = {},
 ): Provider<PowerCopilotApi> {
   let configurationError: ContextWindowError | undefined;
   function configured<T extends Pick<PowerCopilotModelConfig, "id" | "contextWindow">>(models: readonly T[]): T[] {
@@ -50,10 +51,13 @@ export function createPowerCopilotProvider(
       },
       oauth: {
         name: "Power Copilot",
+        ...(options.githubCliLogin ? { loginLabel: "GitHub CLI / OAuth" } : {}),
         isSubscription: true,
         login: async (interaction) => {
           checkLoginConfiguration();
-          return loginPowerCopilot(interaction);
+          return options.githubCliLogin
+            ? loginPowerCopilotWithSourceSelection(interaction)
+            : loginPowerCopilot(interaction);
         },
         refresh: refreshPowerCopilotCredential,
         toAuth: async (credential) => ({

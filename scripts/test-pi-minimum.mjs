@@ -6,6 +6,8 @@ import { fileURLToPath } from "node:url";
 
 const repository = fileURLToPath(new URL("../", import.meta.url));
 const temporaryPrefix = "power-copilot-pi-minimum-";
+// Same-process tests avoid subprocess stdio pipes in confined Windows environments.
+const testIsolation = process.argv.includes("--test-isolation=none") ? ["--test-isolation=none"] : [];
 const dependencies = [
   "@earendil-works/pi-ai@0.87.1",
   "@earendil-works/pi-coding-agent@0.87.1",
@@ -15,6 +17,7 @@ const testFiles = [
   "test/auth.test.ts",
   "test/catalog.test.ts",
   "test/context-window.test.ts",
+  "test/github-cli.test.ts",
   "test/oauth.test.ts",
 ];
 
@@ -81,7 +84,7 @@ net.Socket.prototype.connect = deny;
     }
     console.log(`Run original Pi tests against ${dependencies.join(" and ")}`);
     exitCode = run(process.execPath, [
-      "--experimental-strip-types", "--import", "./network-guard.mjs", "--test", ...testFiles,
+      "--experimental-strip-types", ...testIsolation, "--import", "./network-guard.mjs", "--test", ...testFiles,
     ], temporary, testEnv);
     return exitCode;
   } catch (error) {

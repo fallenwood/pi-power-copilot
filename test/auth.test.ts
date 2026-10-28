@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
+import childProcess, { type ChildProcess } from "node:child_process";
 import {
   createModels,
   envApiKeyAuth,
@@ -11,7 +12,7 @@ import {
 import type { ExtensionAPI } from "@earendil-works/pi-coding-agent";
 import extension from "../src/index.ts";
 
-function createInteraction(answer: string) {
+function createInteraction(answer: string, source = "github-oauth") {
   const prompts: Array<{ type: string; message: string }> = [];
   const notifications: Array<{ type: string }> = [];
   const interaction: ProviderAuthInteraction = {
@@ -21,7 +22,7 @@ function createInteraction(answer: string) {
     },
     async prompt(prompt) {
       prompts.push(prompt);
-      return answer;
+      return prompt.type === "select" ? source : answer;
     },
   };
   return { interaction, prompts, notifications };
@@ -78,7 +79,7 @@ test("registered OAuth login completes device authorization when Pi supplies log
     { getDeviceId: () => "pi-installation-id" },
   ]);
 
-  assert.deepEqual(prompts.map(({ type }) => type), ["text"]);
+  assert.deepEqual(prompts.map(({ type }) => type), ["select", "text"]);
   assert.deepEqual(notifications, [
     {
       type: "device_code",
@@ -187,6 +188,99 @@ test("registered OAuth renewal honors cancellation before making a request", asy
     ),
     (error) => error === reason,
   );
+  assert.equal(fetchMock.mock.callCount(), 0);
+});
+
+test("Pi GitHub CLI login and concurrent expiry re-read gh without device authorization", async (t) => {
+  const provider = registeredProvider();
+  assert.ok(provider.auth.oauth);
+  const { interaction, prompts, notifications } = createInteraction("", "github-cli");
+  let cliCalls = 0;
+  t.mock.method(childProcess, "execFile", ((...args: unknown[]) => {
+    assert.equal(args[0], "gh");
+    assert.deepEqual(args[1], ["auth", "token", "--hostname", "github.com"]);
+    const callback = args[3] as (error: Error | null, stdout: string, stderr: string) => void;
+    callback(null, `private-github-token-${++cliCalls}\n`, "");
+    return { stdin: { end() {} } } as ChildProcess;
+  }) as typeof childProcess.execFile);
+  let exchanges = 0;
+  const expiresAt = Math.floor(Date.now() / 1000) + 3600;
+  t.mock.method(globalThis, "fetch", async (input: string | URL | Request, init?: RequestInit) => {
+    assert.equal(String(input), "https://api.github.com/copilot_internal/v2/token");
+    assert.equal(new Headers(init?.headers).get("authorization"), `Bearer private-github-token-${cliCalls}`);
+    return new Response(JSON.stringify({ token: `copilot-${++exchanges}`, expires_at: expiresAt }));
+  });
+
+  // Extra LoginOptions must never be treated as an injected command runner.
+  const loggedIn: OAuthCredential = await Reflect.apply(provider.auth.oauth.login, provider.auth.oauth, [
+    interaction, { getDeviceId: () => "pi-installation-id" },
+  ]);
+  assert.deepEqual(prompts.map(({ type }) => type), ["select", "text"]);
+  assert.deepEqual(notifications.map(({ type }) => type), ["progress"]);
+  assert.equal(loggedIn.authMethod, "github-cli");
+  assert.equal(loggedIn.refresh, "github-cli");
+  assert.doesNotMatch(JSON.stringify(loggedIn), /private-github-token/);
+
+  const credentials = new InMemoryCredentialStore();
+  const expired = { ...loggedIn, expires: 1, customMetadata: "preserved" };
+  await credentials.modify(provider.id, async () => expired);
+  const models = createModels({ credentials });
+  models.setProvider(provider);
+  const resolved = await Promise.all([models.getAuth(provider.id), models.getAuth(provider.id)]);
+  for (const result of resolved) assert.equal(result?.auth.apiKey, "copilot-2");
+  const saved = await credentials.read(provider.id);
+  assert.deepEqual(saved, { ...expired, access: "copilot-2", expires: expiresAt * 1000 - 5 * 60 * 1000 });
+  assert.equal(cliCalls, 2);
+
+  const nextSession = createModels({ credentials });
+  nextSession.setProvider(registeredProvider());
+  assert.equal((await nextSession.getAuth(provider.id))?.auth.apiKey, "copilot-2");
+  assert.equal(cliCalls, 2);
+  assert.ok(saved?.type === "oauth");
+  await credentials.modify(provider.id, async () => ({ ...saved, expires: 1 }));
+  assert.equal((await nextSession.getAuth(provider.id))?.auth.apiKey, "copilot-3");
+  assert.equal(cliCalls, 3);
+  assert.equal((await credentials.read(provider.id))?.type, "oauth");
+});
+
+test("failed CLI renewal preserves the saved credential and retries gh on the next request", async (t) => {
+  const provider = registeredProvider();
+  const original: OAuthCredential = {
+    type: "oauth", authMethod: "github-cli", refresh: "github-cli", access: "expired", expires: 1,
+  };
+  const credentials = new InMemoryCredentialStore();
+  await credentials.modify(provider.id, async () => original);
+  const models = createModels({ credentials });
+  models.setProvider(provider);
+  let cliCalls = 0;
+  t.mock.method(childProcess, "execFile", ((...args: unknown[]) => {
+    const callback = args[3] as (error: Error | null, stdout: string, stderr: string) => void;
+    if (++cliCalls === 1) callback(new Error("private-stderr-token"), "", "private-stderr-token");
+    else callback(null, "fresh-github-token", "");
+    return { stdin: { end() {} } } as ChildProcess;
+  }) as typeof childProcess.execFile);
+  let exchanges = 0;
+  t.mock.method(globalThis, "fetch", async () => {
+    exchanges++;
+    return new Response(JSON.stringify({ token: "renewed", expires_at: Math.floor(Date.now() / 1000) + 3600 }));
+  });
+  await assert.rejects(models.getAuth(provider.id), (error: Error) => {
+    assert.match(error.message, /GitHub CLI could not read a token/);
+    assert.doesNotMatch(error.message, /private-stderr-token/);
+    return true;
+  });
+  assert.deepEqual(await credentials.read(provider.id), original);
+  assert.equal(exchanges, 0);
+  assert.equal((await models.getAuth(provider.id))?.auth.apiKey, "renewed");
+  assert.equal(cliCalls, 2);
+  assert.equal(exchanges, 1);
+});
+
+test("unknown Pi login sources fail instead of silently launching device authorization", async (t) => {
+  const provider = registeredProvider();
+  assert.ok(provider.auth.oauth);
+  const fetchMock = t.mock.method(globalThis, "fetch", async () => { throw new Error("Unexpected fetch"); });
+  await assert.rejects(provider.auth.oauth.login(createInteraction("", "unknown").interaction), /Unknown GitHub credential source/);
   assert.equal(fetchMock.mock.callCount(), 0);
 });
 

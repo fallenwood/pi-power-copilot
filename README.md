@@ -10,7 +10,22 @@ Install the package with Pi's package manager, or load the extension directly du
 pi --extension ./src/index.ts
 ```
 
-Use `/login`, select **Power Copilot**, then choose **GitHub OAuth** or **API key**. API-key login uses Pi's standard secret-entry flow. Credentials belong to the separate `power-copilot` provider; the plugin does not read or reuse the built-in `github-copilot` credential.
+Use `/login`, select **Power Copilot**, then choose **GitHub CLI / OAuth** or **API key**. The first option lets you choose **GitHub CLI (gh auth token)** or the existing **GitHub OAuth** browser/device flow. API-key login uses Pi's standard secret-entry flow. Credentials belong to the separate `power-copilot` provider; the plugin does not read or reuse the built-in `github-copilot` credential.
+
+### Use GitHub CLI instead of browser authorization
+
+Install GitHub CLI (`gh`) and sign in from a terminal before using Pi:
+
+```sh
+gh auth login --hostname github.com
+gh auth status --hostname github.com
+```
+
+In Pi, run `/login` → **Power Copilot** → **GitHub CLI / OAuth** → **GitHub CLI (gh auth token)**. Leave the hostname blank for `github.com`, or enter your GitHub Enterprise hostname. The plugin executes `gh auth token --hostname <hostname>` privately, exchanges the GitHub token for a short-lived Copilot token, and lets Pi save the renewable credential. There is no device code or browser authorization in this plugin login path. `gh` must be on the PATH inherited by Pi.
+
+Only the Copilot token and a CLI-source marker are saved; the GitHub token is not copied into Pi's credential file. On expiry, the plugin runs `gh auth token` again for the same hostname and exchanges a new Copilot token. Switching gh's active account (or changing its token environment variables) affects the next renewal; sign in again to switch immediately. A CLI failure preserves the previous saved credential for retry, without falling back to browser authorization. The command has a ten-second timeout and the token exchange a thirty-second timeout.
+
+A GitHub CLI token is **not guaranteed** to be eligible for Copilot. If exchange returns 401/403, check your account's Copilot access and organization policy, or choose **GitHub OAuth** instead. Adding scopes is not a guaranteed fix. Do not configure `!gh auth token` as a Power Copilot API key: that path passes the GitHub token directly without exchanging it. Do not run the token command in chat or paste its output into chat. This CLI option is Pi-only; Harness's Models-page sign-in remains unchanged.
 
 Pi versions from 0.87.1 through 1.x are supported (validated with 0.87.1 and 1.1.0). The package's `pi.extensions` entry remains unchanged; Pi does not load the Harness entry point.
 
@@ -109,4 +124,6 @@ npm run build
 npm pack --dry-run
 ```
 
-Tests use synthetic credentials and mocked HTTP/SSE responses, exercising the real pi-ai protocol implementations and Harness adapter without contacting GitHub or reading user credentials. Real GitHub browser authorization and the rendered Models-page appearance have not been manually verified; automated checks do not establish either. Development pins the Pi coding agent's codemode dependency to 1.1.0 because newer codemode releases remove an export used by that SDK version; this repository-level override does not change consumers' dependency resolution.
+In confined Windows environments that disallow the test runner's subprocess stdio pipes, use `node --experimental-strip-types --test --test-isolation=none test/*.test.ts` and `npm run test:pi-minimum -- --test-isolation=none` for same-process tests; normal subprocess isolation remains the default.
+
+Tests use synthetic credentials and mocked HTTP/SSE responses, exercising the real pi-ai protocol implementations and Harness adapter without contacting GitHub, running the real `gh auth token`, or reading user credentials. Real GitHub CLI token eligibility, browser authorization, and the rendered Models-page appearance have not been manually verified; automated checks do not establish any of them. Development pins the Pi coding agent's codemode dependency to 1.1.0 because newer codemode releases remove an export used by that SDK version; this repository-level override does not change consumers' dependency resolution.

@@ -1,0 +1,17 @@
+title:
+  en: Use GitHub CLI credentials for Pi Power Copilot
+  zh: 在 Pi Power Copilot 中使用 GitHub CLI 凭据
+status: implemented
+sections:
+  Problem:
+    en: Pi users need to reuse gh credentials without another browser authorization. Raw gh output is a GitHub token, not an exchanged Copilot token, and copying it duplicates a long-lived secret.
+    zh: Pi 用户需要复用 gh 凭据而不再次进行浏览器授权。gh 原始输出是 GitHub token 而非兑换后的 Copilot token，复制它会重复保存长期秘密。
+  Decision:
+    en: Only Pi enables a GitHub CLI/device-OAuth source selector; Harness keeps its explicit page flow. A fixed shell-free gh command has cancellation, a ten-second timeout, bounded private output, and sanitized failures; exchange has a thirty-second timeout and fixed HTTP diagnostics. Existing renewable credentials store authMethod github-cli and a refresh marker, never the long-lived GitHub token. Expiry re-reads gh and exchanges without model discovery, using Pi's existing locks and persistence. Legacy OAuth and API-key behavior remain compatible, and failed renewal preserves saved credentials without fallback authorization.
+    zh: 仅 Pi 启用 GitHub CLI/设备 OAuth 来源选择器，Harness 保留明确的页面流程。固定且不使用 shell 的 gh 命令支持取消、十秒超时、有界私有输出及错误脱敏；兑换具有三十秒超时和固定 HTTP 诊断。现有可续期凭据保存 authMethod github-cli 及 refresh 标记，不保存长期 GitHub token。到期时重新读取 gh 并兑换，不依赖模型发现，复用 Pi 已有的锁和持久化。旧 OAuth 与 API-key 行为保持兼容，续期失败保留已保存凭据且不回退到其他授权方式。
+  Alternatives considered:
+    en: Raw GitHub tokens cannot replace Copilot API keys; copying the CLI token into refresh duplicates secrets and stops following gh changes. A shared login selector would change Harness's explicit authorization prompts. Removing device OAuth would eliminate the fallback for CLI tokens ineligible for Copilot.
+    zh: 原始 GitHub token 不能替代 Copilot API key；将 CLI token 复制到 refresh 会重复秘密并停止跟踪 gh 变化。共享登录选择器会改变 Harness 明确的授权提示。移除设备 OAuth 会使不能兑换 Copilot 的 CLI token 失去备选登录方式。
+  Consequences:
+    en: gh must be on Pi's inherited PATH with suitable credentials. Active-account or token-environment changes affect the next renewal; re-login switches immediately. Token eligibility, subscription, or policy may deny exchange. Synthetic tests cover private execution, failures, cancellation, routing, metadata, registered-provider concurrency, persistence, retry, and minimum-Pi integration without invoking real gh or proving real-account eligibility. The minimum-Pi runner offers explicit same-process test isolation for Windows pipe confinement, keeping subprocess isolation as the default. English and Chinese notes retain aligned sections, paragraphs, lists, and links.
+    zh: gh 必须位于 Pi 继承的 PATH 中并具有合适凭据。活动账户或 token 环境变化影响下次续期，重新登录可立即切换。token 资格、订阅或策略可能导致兑换被拒绝。合成测试覆盖私有执行、失败、取消、路由、元数据、注册 provider 并发、持久化、重试及最低 Pi 版本集成，不运行真实 gh，也不证明真实账户资格。最低 Pi 版本脚本为 Windows 管道限制提供显式同进程测试隔离，默认仍使用子进程隔离。中英文说明保持章节、段落、列表及链接结构一致。
