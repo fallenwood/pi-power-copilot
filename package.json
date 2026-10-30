@@ -3,10 +3,11 @@
   "version": "0.1.1",
   "private": true,
   "type": "module",
-  "description": "Dynamic Power Copilot models and independent OAuth for Pi coding agent and DeepSeek Harness",
+  "description": "Dynamic Power Copilot models and independent OAuth for Pi, Oh My Pi, and DeepSeek Harness",
   "exports": {
     ".": "./dist/harness.js",
     "./pi": "./src/index.ts",
+    "./omp": "./src/omp.ts",
     "./client": "./client.js",
     "./locale/*.json": "./locale/*.json",
     "./icon": "./icon.svg"
@@ -27,7 +28,9 @@
     "client": {
       "platform": "web",
       "immediately": true,
-      "inject": ["@deepseek-ai/dsh-client-ui-settings-models"]
+      "inject": [
+        "@deepseek-ai/dsh-client-ui-settings-models"
+      ]
     }
   },
   "engines": {
@@ -39,7 +42,8 @@
     "prepack": "npm run build",
     "test": "node --experimental-strip-types --test test/*.test.ts",
     "typecheck": "tsc --noEmit",
-    "test:pi-minimum": "node scripts/test-pi-minimum.mjs"
+    "test:pi-minimum": "node scripts/test-pi-minimum.mjs",
+    "test:omp": "bun test test/omp"
   },
   "overrides": {
     "@earendil-works/pi-coding-agent": {
@@ -51,20 +55,44 @@
       "./src/index.ts"
     ]
   },
+  "omp": {
+    "extensions": [
+      "./src/omp.ts"
+    ]
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
-    "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
     "@deepseek-ai/schemastery": "~3.18.5",
     "@earendil-works/pi-ai": ">=0.87.1 <2",
-    "@earendil-works/pi-coding-agent": ">=0.87.1 <2"
+    "@earendil-works/pi-coding-agent": ">=0.87.1 <2",
+    "@oh-my-pi/pi-ai": ">=18.14.0 <19",
+    "@oh-my-pi/pi-catalog": ">=18.14.0 <19",
+    "@oh-my-pi/pi-coding-agent": ">=18.14.0 <19",
+    "@oh-my-pi/pi-utils": ">=18.14.0 <19"
   },
   "peerDependenciesMeta": {
+    "@earendil-works/pi-ai": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-ai": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-catalog": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-coding-agent": {
+      "optional": true
+    },
+    "@oh-my-pi/pi-utils": {
+      "optional": true
+    },
     "@earendil-works/pi-coding-agent": {
       "optional": true
     },
@@ -74,9 +102,15 @@
     "@deepseek-ai/dsh-authorization": {
       "optional": true
     },
-    "@deepseek-ai/dsh-client-connection": { "optional": true },
-    "@deepseek-ai/dsh-settings": { "optional": true },
-    "@deepseek-ai/cordis-plugin-loader": { "optional": true },
+    "@deepseek-ai/dsh-client-connection": {
+      "optional": true
+    },
+    "@deepseek-ai/dsh-settings": {
+      "optional": true
+    },
+    "@deepseek-ai/cordis-plugin-loader": {
+      "optional": true
+    },
     "@deepseek-ai/dsh-credentials": {
       "optional": true
     },
@@ -92,16 +126,20 @@
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "~4.0.5",
+    "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@deepseek-ai/dsh-authorization": "0.2.1-rc.2",
     "@deepseek-ai/dsh-client-connection": "0.2.1-rc.2",
-    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
-    "@deepseek-ai/cordis-plugin-loader": "~1.0.6",
     "@deepseek-ai/dsh-credentials": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
     "@deepseek-ai/dsh-llm-pi-ai": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-settings": "0.2.1-rc.2",
     "@deepseek-ai/schemastery": "~3.18.5",
     "@earendil-works/pi-ai": "1.1.0",
     "@earendil-works/pi-coding-agent": "1.1.0",
+    "@oh-my-pi/pi-ai": "18.14.0",
+    "@oh-my-pi/pi-catalog": "18.14.0",
+    "@oh-my-pi/pi-coding-agent": "18.14.0",
+    "@oh-my-pi/pi-utils": "18.14.0",
     "@types/node": "^24.0.0",
     "typescript": "^7.0.2"
   }

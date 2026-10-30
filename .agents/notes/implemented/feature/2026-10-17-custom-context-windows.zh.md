@@ -18,6 +18,8 @@ Pi 的目录缓存保留未经修改的服务端上限；只有发布的内存�
 
 Harness 通过自身 Cordis `contextWindows` 配置应用相同的上下文窗口校验，不读取 Pi 文件。其进程内目录及独立运行时所有权记录于[双运行时架构决策](../architecture/2026-10-22-dual-runtime-provider.zh.md)。[Models provider 设置决策](../architecture/2026-10-22-harness-model-provider-settings.zh.md)增加动态上下文窗口设置及目录失效，同时保留已准备调用快照。上述 Pi 配置和持久化缓存决策保持不变。
 
+[OMP 适配器决策](../architecture/2026-10-30-omp-provider.zh.md)将相同边界及文件结构扩展到 OMP 自身 agent 目录。其原生缓存存储生效窗口，因此编辑需要重启及实时重新发现；OMP 不支持离线逆转。该运行时专属例外不替换上述 Pi 原始缓存行为。
+
 ## Alternatives considered
 
 - 仅使用 Pi 的 `models.json` 覆盖配置：该机制已能替换上下文元数据，但不强制校验发现的最大值，因此无法提供所需的校验。

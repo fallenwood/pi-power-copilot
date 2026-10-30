@@ -1,6 +1,6 @@
 # Power Copilot Provider
 
-One package for **Pi coding agent** and **DeepSeek Harness**. Both runtimes register a `power-copilot` provider and discover models from the Copilot-compatible `GET /models` endpoint. Model IDs and capabilities are not embedded in the plugin.
+One package for **Pi coding agent**, **Oh My Pi (OMP)**, and **DeepSeek Harness**. All three runtimes register a `power-copilot` provider and discover models from the Copilot-compatible `GET /models` endpoint. Model IDs and capabilities are not embedded in the plugin.
 
 ## Pi coding agent
 
@@ -44,6 +44,32 @@ Create `power-copilot.json` in Pi's agent configuration directory (normally `~/.
 Restart Pi after editing the file. Missing files, an empty object, and unconfigured models retain the advertised maximum. Remove an entry to restore its maximum. Malformed JSON, unsupported fields, and file-read failures other than a missing file are reported.
 
 Overrides also apply to cached catalogs. Pi's cache retains the service's original limits, so increasing or removing an override does not require another network fetch. Avoid also overriding `contextWindow` for the same model in Pi's `models.json`, whose overrides are applied after provider metadata.
+
+## Oh My Pi (OMP)
+
+The native adapter targets OMP 18.14.0 (peer range: `>=18.14.0 <19`). It uses a separate native extension, not Pi's provider API. For a source checkout:
+
+```sh
+npm ci --ignore-scripts
+omp --extension ./src/omp.ts
+```
+
+For persistent installation, run `omp plugin install /absolute/path/to/pi-power-copilot`. The package's `omp.extensions` manifest selects `src/omp.ts`; `pi.extensions` still selects `src/index.ts`. OMP does not load the Harness entry or require the `@earendil-works` Pi packages.
+
+Run `/login` and select **Power Copilot**. At the authentication-method prompt:
+
+- Leave it blank or enter `oauth` for GitHub device authorization. Leave the following Enterprise hostname blank for github.com, or supply your Enterprise domain. Open the displayed verification URL and enter the displayed code.
+- Enter `api-key` to paste a token into OMP's masked secret prompt. It is saved as a normal OMP API-key credential, without OAuth exchange or automatic renewal.
+
+Run `/power-copilot-refresh` after sign-in or an account change, then select a model under **Power Copilot** in OMP's model picker. This command resolves authentication first, renewing an expired OAuth grant if necessary, then requests live model discovery. OMP's ordinary discovery only peeks at unexpired access; use this command if an expired login and a cold catalog prevent discovery. Renewal itself does not depend on `/models` being available.
+
+OMP owns the `power-copilot` credential in its active credential store. It does not import Pi/Harness credentials or reuse the built-in `github-copilot` login. OMP's native streaming implementations handle Responses, Chat Completions, and Anthropic Messages, with Copilot request headers and Bearer authentication. GitHub CLI source login remains Pi-only; OMP supports browser/device OAuth and pasted API keys.
+
+### Custom context windows in OMP
+
+Use the same `power-copilot.json` format and bounds described above, in **OMP's active agent directory** (normally `~/.omp/agent`; OMP profiles, XDG paths, and `PI_CODING_AGENT_DIR` are honored). It never implicitly reads Pi's configuration file.
+
+Restart OMP after edits, then run `/power-copilot-refresh`. Unlike Pi's raw catalog cache, OMP's native SQLite cache retains the **effective** model windows, with a default 24-hour catalog lifetime. An offline restart can reuse that snapshot, but changing, increasing, or removing an override requires successful live rediscovery. Invalid refreshes can leave the previous cached snapshot available; check OMP's discovery diagnostics rather than assuming an old window is the new setting. Avoid also configuring the same model's context window in OMP's `models.yml`.
 
 ## DeepSeek Harness
 
@@ -97,7 +123,7 @@ Apply the profile patch after editing. The same bounds below apply. The plugin n
 
 ## Shared authentication and model behavior
 
-The OAuth flow requests a GitHub device code and exchanges the GitHub OAuth token for a short-lived Copilot token. Both runtimes renew the Copilot token using the stored GitHub token and persist the renewed credential. Ordinary expiry does not require another device login. Token renewal is independent of model discovery, so a catalog outage cannot invalidate a successful renewal. A revoked or invalid GitHub token still requires signing in again.
+The OAuth flow requests a GitHub device code and exchanges the GitHub OAuth token for a short-lived Copilot token. All three runtimes renew the Copilot token using the stored GitHub token and persist the renewed credential. Ordinary expiry does not require another device login. Token renewal is independent of model discovery, so a catalog outage cannot invalidate a successful renewal. A revoked or invalid GitHub token still requires signing in again.
 
 API-key login stores only the pasted token, with no refresh credential. If you paste a short-lived Copilot token, replace it when it expires. Choose **GitHub OAuth** for automatic renewal.
 
@@ -105,13 +131,13 @@ The API host is derived from the credential. Enterprise OAuth uses `https://api.
 
 The `/models` response must contain a `data` array in the Copilot model format. Chat models need `id`, `name`, `capabilities.limits.max_context_window_tokens`, and `capabilities.limits.max_output_tokens`. `capabilities.supports.vision` and `capabilities.supports.reasoning_effort` configure model capabilities. Models marked `model_picker_enabled: false`, non-chat models, and models without a supported `/responses`, `/chat/completions`, or `/messages` endpoint are omitted.
 
-For each model the plugin prefers Responses, then Anthropic Messages, then Chat Completions. Both runtimes use pi-ai streaming implementations and send the current credential as Bearer authentication, including Claude's Anthropic Messages route (not `x-api-key`). Tokens and provider response bodies are not logged.
+For each model the plugin prefers Responses, then Anthropic Messages, then Chat Completions. All three runtimes use their host's pi-ai streaming implementations and send the current credential as Bearer authentication, including Claude's Anthropic Messages route (not `x-api-key`). Tokens and provider response bodies are not logged.
 
 ### Context-window validation
 
 Keys are exact model IDs from `/models`. Each value is a token count: any positive safe integer **strictly less than** the model's `max_context_window_tokens` is accepted, without presets or step sizes. For a 400000-token maximum, 1 through 399999 are valid. Zero, negative numbers, fractions, strings, and values at or above the maximum are rejected, not silently clamped.
 
-Entries for unavailable models remain inactive; their upper bounds are checked when those models become available. Both authentication methods and all three protocols use the effective window. Only `contextWindow` changes; routing, reasoning capabilities, and output-token limits stay unchanged. The effective window drives the runtime's context accounting and compaction, but does not change server capacity or guarantee that a prompt fits a very small window. Adjust compaction reserves accordingly.
+Entries for unavailable models remain inactive; their upper bounds are checked when those models become available. Both authentication methods and all three protocols use the effective window in each runtime. Only `contextWindow` changes; routing, reasoning capabilities, and output-token limits stay unchanged. The effective window drives the runtime's context accounting and compaction, but does not change server capacity or guarantee that a prompt fits a very small window. Adjust compaction reserves accordingly.
 
 ## Development
 
@@ -119,6 +145,7 @@ Entries for unavailable models remain inactive; their upper bounds are checked w
 npm ci --ignore-scripts
 npm test
 npm run test:pi-minimum
+npm run test:omp # Requires Bun for the native OMP SDK
 npm run typecheck
 npm run build
 npm pack --dry-run
@@ -126,4 +153,4 @@ npm pack --dry-run
 
 In confined Windows environments that disallow the test runner's subprocess stdio pipes, use `node --experimental-strip-types --test --test-isolation=none test/*.test.ts` and `npm run test:pi-minimum -- --test-isolation=none` for same-process tests; normal subprocess isolation remains the default.
 
-Tests use synthetic credentials and mocked HTTP/SSE responses, exercising the real pi-ai protocol implementations and Harness adapter without contacting GitHub, running the real `gh auth token`, or reading user credentials. Real GitHub CLI token eligibility, browser authorization, and the rendered Models-page appearance have not been manually verified; automated checks do not establish any of them. Development pins the Pi coding agent's codemode dependency to 1.1.0 because newer codemode releases remove an export used by that SDK version; this repository-level override does not change consumers' dependency resolution.
+Tests use synthetic credentials and mocked HTTP/SSE responses, exercising the real pi-ai protocol implementations, Harness adapter, and native OMP registry without contacting GitHub, running the real `gh auth token`, or reading user credentials. `npm test` includes the runtime-neutral OMP adapter tests; `npm run test:omp` additionally runs the Bun-only OMP entry, SQLite credential/cache, and protocol integration tests in isolated directories. Real GitHub CLI token eligibility, browser authorization, and the rendered Models-page appearance have not been manually verified; automated checks do not establish any of them. Development pins the Pi coding agent's codemode dependency to 1.1.0 because newer codemode releases remove an export used by that SDK version; this repository-level override does not change consumers' dependency resolution.

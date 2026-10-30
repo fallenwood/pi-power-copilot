@@ -18,6 +18,8 @@ Pi's catalog cache retains unmodified service limits; only the published in-memo
 
 Harness applies the same context-window validation through its own Cordis `contextWindows` configuration rather than reading Pi's file. Its process-local catalog and independent runtime ownership are recorded in [the dual-runtime architecture decision](../architecture/2026-10-22-dual-runtime-provider.md). [The Models-provider settings decision](../architecture/2026-10-22-harness-model-provider-settings.md) adds live context-window settings and catalog invalidation while preserving prepared-call snapshots. The Pi configuration and persistent-cache decisions above remain unchanged.
 
+[The OMP adapter decision](../architecture/2026-10-30-omp-provider.md) extends the same bounds and file shape to OMP's own agent directory. Its native cache stores effective windows, so edits require restart and live rediscovery; offline reversal is not available in OMP. This runtime-specific exception does not replace Pi's raw-cache behavior above.
+
 ## Alternatives considered
 
 - Use only Pi's `models.json` overrides: these already replace context metadata but do not enforce the discovered maximum, so they do not provide the required validation.

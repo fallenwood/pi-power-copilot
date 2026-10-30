@@ -26,6 +26,8 @@ Harness receives `contextWindows` through Cordis plugin configuration, not Pi's 
 
 Development uses pi-ai and Pi coding agent 1.1 with the Harness 0.2.1-rc.2 API. The root development override pins coding agent's `pi-codemode` dependency to 1.1.0 because 1.4 removes an export that this coding-agent version imports. The override repairs this repository's development dependency graph; it is not a consumer dependency constraint or a claim that every version allowed by the peer ranges is validated.
 
+[The OMP adapter decision](2026-10-30-omp-provider.md) extends the package to a third runtime without replacing this Pi/Harness provider factory. OMP uses its native SDK, independent credentials, and native catalog lifecycle; only runtime-neutral catalog, OAuth, routing, and validation code is shared across all three.
+
 ## Alternatives considered
 
 - Load the Pi extension directly in Harness: rejected because `ExtensionAPI`, Pi lifecycle hooks, and Pi's configuration directory are not Harness's provider-registration and credential seams.

@@ -26,6 +26,8 @@ Harness 通过 Cordis 插件配置接收 `contextWindows`，不使用 Pi 配置�
 
 开发使用 pi-ai 与 Pi coding agent 1.1，以及 Harness 0.2.1-rc.2 API。根级开发 override 将 coding agent 的 `pi-codemode` 依赖固定为 1.1.0，因为 1.4 移除了该 coding-agent 版本仍导入的 export。该 override 修复的是本仓库的开发依赖图，不是使用方的依赖约束，也不表示 peer 范围允许的每个版本都已验证。
 
+[OMP 适配器决策](2026-10-30-omp-provider.zh.md)将包扩展到第三个运行时，不替换此 Pi/Harness provider 工厂。OMP 使用原生 SDK、独立凭据及原生目录生命周期；三个运行时仅共享与运行时无关的目录、OAuth、路由及校验代码。
+
 ## Alternatives considered
 
 - 在 Harness 中直接加载 Pi 扩展：不采用，因为 `ExtensionAPI`、Pi 生命周期钩子及 Pi 配置目录不是 Harness 的 provider 注册和凭据接口。
